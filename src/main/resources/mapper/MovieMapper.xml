@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.douban.mapper.MovieMapper">
+    <select id="findMovieById" resultType="com.example.douban.pojo.Movie">
+        SELECT movieID,
+               name,
+               director,
+               actor,
+               genre,
+               tag,
+               summary,
+               rate / 2 AS rate,
+               popular,
+               year,
+               ratingsum,
+               img,
+               tags,
+               region
+        FROM movie
+        WHERE movieID = #{id}
+    </select>
+    <select id="findRandomMovie" resultType="com.example.douban.pojo.Movie">
+        SELECT *
+        FROM movie
+        ORDER BY CAST(popular AS SIGNED) DESC
+        LIMIT 1 OFFSET ${offset};
+    </select>
+    <select id="findMovieByTag" resultType="com.example.douban.pojo.Movie">
+        SELECT *
+        FROM movie
+        WHERE 1 = 1
+        <if test="tag1 == '全部'">
+        </if>
+        <if test="tag1 != '全部' and tag1 != '其它'">
+            AND genre LIKE CONCAT('%', #{tag1}, '%')
+        </if>
+        <if test="tag1 == '其它'">
+            AND genre NOT LIKE CONCAT('%','动作','%')
+            AND genre NOT LIKE CONCAT('%','动画','%')
+            AND genre NOT LIKE CONCAT('%','喜剧','%')
+            AND genre NOT LIKE CONCAT('%','犯罪','%')
+            AND genre NOT LIKE CONCAT('%','科幻','%')
+            AND genre NOT LIKE CONCAT('%','历史','%')
+            AND genre NOT LIKE CONCAT('%','音乐','%')
+            AND genre NOT LIKE CONCAT('%','爱情','%')
+            AND genre NOT LIKE CONCAT('%','悬疑','%')
+            AND genre NOT LIKE CONCAT('%','惊悚','%')
+        </if>
+        <if test="tag2 == '全部'">
+        </if>
+        <if test="tag2 != '全部' and tag2 != '其它'">
+            AND year = #{tag2}
+        </if>
+        <if test="tag2 == '其它'">
+            AND year &lt; 2006
+        </if>
+        <if test="tag3 == '全部'">
+        </if>
+        <if test="tag3 != '全部' and tag3 != '其它'">
+            AND region LIKE CONCAT('%',#{tag3},'%')
+        </if>
+        <if test="tag3 == '其它'">
+            AND region NOT LIKE CONCAT('%','大陆','%')
+            AND region NOT LIKE CONCAT('%','香港','%')
+            AND region NOT LIKE CONCAT('%','台湾','%')
+            AND region NOT LIKE CONCAT('%','美国','%')
+            AND region NOT LIKE CONCAT('%','韩国','%')
+            AND region NOT LIKE CONCAT('%','日本','%')
+            AND region NOT LIKE CONCAT('%','俄罗斯','%')
+            AND region NOT LIKE CONCAT('%','印度','%')
+            AND region NOT LIKE CONCAT('%','泰国','%')
+            AND region NOT LIKE CONCAT('%','英国','%')
+        </if>
+        ORDER BY CAST(popular AS SIGNED) DESC
+        LIMIT ${limit} OFFSET ${offset}
+    </select>
+    <select id="countMovieByTag" resultType="int">
+        SELECT COUNT(movieID) AS cnt
+        FROM movie
+        WHERE 1 = 1
+        <if test="tag1 == '全部'">
+        </if>
+        <if test="tag1 != '全部' and tag1 != '其它'">
+            AND genre LIKE CONCAT('%', #{tag1}, '%')
+        </if>
+        <if test="tag1 == '其它'">
+            AND genre NOT LIKE CONCAT('%','动作','%')
+            AND genre NOT LIKE CONCAT('%','动画','%')
+            AND genre NOT LIKE CONCAT('%','喜剧','%')
+            AND genre NOT LIKE CONCAT('%','犯罪','%')
+            AND genre NOT LIKE CONCAT('%','科幻','%')
+            AND genre NOT LIKE CONCAT('%','历史','%')
+            AND genre NOT LIKE CONCAT('%','音乐','%')
+            AND genre NOT LIKE CONCAT('%','爱情','%')
+            AND genre NOT LIKE CONCAT('%','悬疑','%')
+            AND genre NOT LIKE CONCAT('%','惊悚','%')
+        </if>
+        <if test="tag2 == '全部'">
+        </if>
+        <if test="tag2 != '全部' and tag2 != '其它'">
+            AND year = #{tag2}
+        </if>
+        <if test="tag2 == '其它'">
+            AND year &lt;2006
+        </if>
+        <if test="tag3 == '全部'">
+        </if>
+        <if test="tag3 != '全部' and tag3 != '其它'">
+            AND region LIKE CONCAT('%',#{tag3},'%')
+        </if>
+        <if test="tag3 == '其它'">
+            AND region NOT LIKE CONCAT('%','大陆','%')
+            AND region NOT LIKE CONCAT('%','香港','%')
+            AND region NOT LIKE CONCAT('%','台湾','%')
+            AND region NOT LIKE CONCAT('%','美国','%')
+            AND region NOT LIKE CONCAT('%','韩国','%')
+            AND region NOT LIKE CONCAT('%','日本','%')
+            AND region NOT LIKE CONCAT('%','俄罗斯','%')
+            AND region NOT LIKE CONCAT('%','印度','%')
+            AND region NOT LIKE CONCAT('%','泰国','%')
+            AND region NOT LIKE CONCAT('%','英国','%')
+        </if>
+        ORDER BY CAST(popular AS SIGNED) DESC
+    </select>
+    <select id="findMovieByKeywords" resultType="com.example.douban.pojo.Movie">
+        SELECT movieID,
+               name,
+               director,
+               actor,
+               genre,
+               tag,
+               summary,
+               rate / 2 as rate,
+               popular,
+               year,
+               ratingsum,
+               img,
+               tags,
+               region
+        FROM movie
+        WHERE name LIKE CONCAT('%', #{keyword}, '%')
+        LIMIT ${limit} OFFSET ${offset};
+    </select>
+    <select id="countMovieByKeywords" resultType="int">
+        SELECT count(*)
+        FROM movie
+        WHERE name LIKE CONCAT('%', #{keyword}, '%');
+    </select>
+    <select id="findUserIdByNickname" resultType="String">
+        SELECT 序号 as userID
+        FROM usrid
+        WHERE id = #{nickname};
+    </select>
+    <select id="findMovieIdById" resultType="String">
+        SELECT movieID
+        FROM movid
+        WHERE 序号 = #{id};
+    </select>
+    <select id="findMovieByNickname" resultType="String">
+        SELECT movid
+        FROM usrrate_none
+        WHERE nickname = #{nickname};
+    </select>
+    <select id="findMovieByNickname2" resultType="String">
+        SELECT movieID
+        FROM comments
+        WHERE nickname = #{nickname};
+    </select>
+</mapper>

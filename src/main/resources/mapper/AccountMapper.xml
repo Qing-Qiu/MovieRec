@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.douban.mapper.AccountMapper">
+    <select id="findAccountByUsername" resultType="com.example.douban.pojo.Account">
+        SELECT *
+        FROM userinfo
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateAccount" parameterType="com.example.douban.pojo.Account">
+        UPDATE userinfo
+        SET password= #{password}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertAccount" parameterType="com.example.douban.pojo.Account">
+        INSERT INTO userinfo(id, nickname, password)
+        VALUES(#{id}, #{nickname}, #{password})
+    </insert>
+
+    <select id="getNewAccountId" resultType="string">
+        SELECT MAX(CAST(id AS SIGNED)) + 1 FROM userinfo
+    </select>
+</mapper>

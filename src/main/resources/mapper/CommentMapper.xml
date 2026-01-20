@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.douban.mapper.CommentMapper">
+    <select id="findCommentByMovie" resultType="com.example.douban.pojo.Comment">
+        SELECT userID, nickname, comment, movieID
+        FROM comments
+        WHERE movieID = #{id}
+        LIMIT ${limit} OFFSET ${offset};
+    </select>
+    <select id="countCommentByMovie" resultType="int">
+        SELECT count(*)
+        FROM comments
+        WHERE movieID = #{id};
+    </select>
+    <insert id="appendComment" parameterType="com.example.douban.pojo.Comment">
+        INSERT INTO idcomment(id, nickname, 评论, 电影编号)
+        VALUES (#{userID}, #{nickname}, #{comment}, #{movieID});
+    </insert>
+</mapper>

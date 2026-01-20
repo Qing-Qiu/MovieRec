@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.douban.mapper.ChartMapper">
+    <select id="getMovieYears" resultType="string">
+        SELECT DISTINCT year
+        FROM movie
+        WHERE year &lt; 2016
+        ORDER BY year;
+    </select>
+    <select id="getMostPopularMovie" resultType="com.example.douban.pojo.Movie">
+        SELECT name, movieID, popular, year
+        FROM movie
+        WHERE year = #{year}
+        ORDER BY CAST(popular AS SIGNED) DESC
+        LIMIT 1;
+    </select>
+    <select id="getMovieCountByTag" resultType="com.example.douban.pojo.Movie">
+        SELECT COUNT(*) AS movieID,
+        <if test="year != '全部'">year,</if>
+        #{tag} AS genre
+        FROM movie
+        WHERE 1 = 1
+        <if test="year != '全部'">
+            AND year = #{year}
+        </if>
+        <if test="tag == '其它'">
+            AND genre NOT LIKE CONCAT('%','动作','%')
+            AND genre NOT LIKE CONCAT('%','动画','%')
+            AND genre NOT LIKE CONCAT('%','喜剧','%')
+            AND genre NOT LIKE CONCAT('%','犯罪','%')
+            AND genre NOT LIKE CONCAT('%','科幻','%')
+            AND genre NOT LIKE CONCAT('%','历史','%')
+            AND genre NOT LIKE CONCAT('%','音乐','%')
+            AND genre NOT LIKE CONCAT('%','爱情','%')
+            AND genre NOT LIKE CONCAT('%','悬疑','%')
+            AND genre NOT LIKE CONCAT('%','惊悚','%')
+        </if>
+        <if test="tag != '其它'">
+            AND genre LIKE CONCAT('%', #{tag}, '%');
+        </if>
+    </select>
+</mapper>
