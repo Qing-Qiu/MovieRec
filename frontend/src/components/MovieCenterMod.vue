@@ -1,58 +1,52 @@
 <template>
   <div class="movie-center-container">
     <div class="filter-section">
+      <!-- 类型 -->
       <div class="filter-group">
         <span class="filter-label">类型：</span>
-        <a-radio-group v-model:value="value1" button-style="solid" @change="onChange1()">
-          <a-radio-button value="a">全部</a-radio-button>
-          <a-radio-button value="b">动作</a-radio-button>
-          <a-radio-button value="c">动画</a-radio-button>
-          <a-radio-button value="d">喜剧</a-radio-button>
-          <a-radio-button value="e">犯罪</a-radio-button>
-          <a-radio-button value="f">科幻</a-radio-button>
-          <a-radio-button value="g">历史</a-radio-button>
-          <a-radio-button value="h">音乐</a-radio-button>
-          <a-radio-button value="i">爱情</a-radio-button>
-          <a-radio-button value="j">悬疑</a-radio-button>
-          <a-radio-button value="k">惊悚</a-radio-button>
-          <a-radio-button value="l">其它</a-radio-button>
-        </a-radio-group>
+        <div class="tags-wrapper">
+          <span 
+            v-for="item in typeOptions" 
+            :key="item.value"
+            class="tag-item" 
+            :class="{ active: value1 === item.value }"
+            @click="selectType(item.value)"
+          >
+            {{ item.label }}
+          </span>
+        </div>
       </div>
       
+      <!-- 年份 -->
       <div class="filter-group">
         <span class="filter-label">年份：</span>
-        <a-radio-group v-model:value="value2" button-style="solid" @change="onChange1()">
-          <a-radio-button value="a">全部</a-radio-button>
-          <a-radio-button value="2015">2015</a-radio-button>
-          <a-radio-button value="2014">2014</a-radio-button>
-          <a-radio-button value="2013">2013</a-radio-button>
-          <a-radio-button value="2012">2012</a-radio-button>
-          <a-radio-button value="2011">2011</a-radio-button>
-          <a-radio-button value="2010">2010</a-radio-button>
-          <a-radio-button value="2009">2009</a-radio-button>
-          <a-radio-button value="2008">2008</a-radio-button>
-          <a-radio-button value="2007">2007</a-radio-button>
-          <a-radio-button value="2006">2006</a-radio-button>
-          <a-radio-button value="l">更早</a-radio-button>
-        </a-radio-group>
+        <div class="tags-wrapper">
+          <span 
+            v-for="item in yearOptions" 
+            :key="item.value"
+            class="tag-item" 
+            :class="{ active: value2 === item.value }"
+            @click="selectYear(item.value)"
+          >
+            {{ item.label }}
+          </span>
+        </div>
       </div>
 
+      <!-- 地区 -->
       <div class="filter-group">
         <span class="filter-label">地区：</span>
-        <a-radio-group v-model:value="value3" button-style="solid" @change="onChange1()">
-          <a-radio-button value="a">全部</a-radio-button>
-          <a-radio-button value="b">内地</a-radio-button>
-          <a-radio-button value="c">香港</a-radio-button>
-          <a-radio-button value="d">台湾</a-radio-button>
-          <a-radio-button value="e">美国</a-radio-button>
-          <a-radio-button value="f">韩国</a-radio-button>
-          <a-radio-button value="g">日本</a-radio-button>
-          <a-radio-button value="h">俄罗斯</a-radio-button>
-          <a-radio-button value="i">印度</a-radio-button>
-          <a-radio-button value="j">泰国</a-radio-button>
-          <a-radio-button value="k">英国</a-radio-button>
-          <a-radio-button value="l">其它</a-radio-button>
-        </a-radio-group>
+        <div class="tags-wrapper">
+          <span 
+            v-for="item in regionOptions" 
+            :key="item.value"
+            class="tag-item" 
+            :class="{ active: value3 === item.value }"
+            @click="selectRegion(item.value)"
+          >
+            {{ item.label }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -155,6 +149,50 @@ export default {
       offset: 0,
       count: 0,
       loading: false,
+      
+      // Options data
+      typeOptions: [
+        { label: '全部', value: 'a' },
+        { label: '动作', value: 'b' },
+        { label: '动画', value: 'c' },
+        { label: '喜剧', value: 'd' },
+        { label: '犯罪', value: 'e' },
+        { label: '科幻', value: 'f' },
+        { label: '历史', value: 'g' },
+        { label: '音乐', value: 'h' },
+        { label: '爱情', value: 'i' },
+        { label: '悬疑', value: 'j' },
+        { label: '惊悚', value: 'k' },
+        { label: '其它', value: 'l' }
+      ],
+      yearOptions: [
+        { label: '全部', value: 'a' },
+        { label: '2015', value: '2015' },
+        { label: '2014', value: '2014' },
+        { label: '2013', value: '2013' },
+        { label: '2012', value: '2012' },
+        { label: '2011', value: '2011' },
+        { label: '2010', value: '2010' },
+        { label: '2009', value: '2009' },
+        { label: '2008', value: '2008' },
+        { label: '2007', value: '2007' },
+        { label: '2006', value: '2006' },
+        { label: '更早', value: 'l' }
+      ],
+      regionOptions: [
+        { label: '全部', value: 'a' },
+        { label: '内地', value: 'b' },
+        { label: '香港', value: 'c' },
+        { label: '台湾', value: 'd' },
+        { label: '美国', value: 'e' },
+        { label: '韩国', value: 'f' },
+        { label: '日本', value: 'g' },
+        { label: '俄罗斯', value: 'h' },
+        { label: '印度', value: 'i' },
+        { label: '泰国', value: 'j' },
+        { label: '英国', value: 'k' },
+        { label: '其它', value: 'l' }
+      ]
     }
   },
   beforeMount() {
@@ -242,8 +280,23 @@ export default {
         this.loading = false;
       }
     },
-
-    onChange1() {
+    
+    // New handling methods
+    selectType(val) {
+      if (this.value1 === val) return;
+      this.value1 = val;
+      this.current1 = 1;
+      this.fetchData();
+    },
+    selectYear(val) {
+      if (this.value2 === val) return;
+      this.value2 = val;
+      this.current1 = 1;
+      this.fetchData();
+    },
+    selectRegion(val) {
+      if (this.value3 === val) return;
+      this.value3 = val;
       this.current1 = 1;
       this.fetchData();
     },
@@ -277,18 +330,53 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: #fdfdfd;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
 }
 
 .filter-group {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .filter-label {
-  font-weight: 500;
-  margin-right: 12px;
-  min-width: 50px;
+  font-weight: 600;
+  margin-right: 16px;
+  min-width: 60px;
+  color: #666;
+  margin-top: 6px; /* Align with tags */
+}
+
+.tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-item {
+  padding: 5px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
   color: #555;
+  transition: all 0.2s ease;
+  user-select: none;
+  background: transparent;
+}
+
+.tag-item:hover {
+  text-decoration: none;
+  color: #1890ff;
+  background: rgba(24, 144, 255, 0.08);
+}
+
+.tag-item.active {
+  background: #1890ff;
+  color: #fff;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.25);
 }
 
 .movie-list-section {
