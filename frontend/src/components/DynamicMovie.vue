@@ -1,113 +1,101 @@
 <template>
-  <a-card>
-    <a-row>
-      <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-      <a-col :xs="8" :sm="8" :md="8" :lg="8" :xl="8" :xxl="8">
-        <img :src="'http://localhost:8080/image?url=' + this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer"
-             style="display: block;width: auto"
-        />
-      </a-col>
-      <a-col :xs="8" :sm="8" :md="8" :lg="8" :xl="8" :xxl="8">
-        <a-typography>
-          <a-typography-title style="text-align: left">{{ this.movie_content.name }}</a-typography-title>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>导演：</a-typography-text>
-            {{ this.movie_content.director }}
-          </a-typography-paragraph>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>主演：</a-typography-text>
-            {{ this.movie_content.actor }}
-          </a-typography-paragraph>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>类型：</a-typography-text>
-            {{ this.movie_content.tag }}
-          </a-typography-paragraph>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>评分：</a-typography-text>
-            {{ this.movie_content.rate }}
-          </a-typography-paragraph>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>评价人数：</a-typography-text>
-            {{ this.movie_content.popular }}
-          </a-typography-paragraph>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>年份：</a-typography-text>
-            {{ this.movie_content.year }}
-          </a-typography-paragraph>
-          <a-typography-paragraph style="text-align: left">
-            <a-typography-text strong>制片国家/地区：</a-typography-text>
-            {{ this.movie_content.region }}
-          </a-typography-paragraph>
-        </a-typography>
-      </a-col>
-      <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-    </a-row>
-  </a-card>
-  <a-row>
-    <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-    <a-col :xs="16" :sm="16" :md="16" :lg="16" :xl="16" :xxl="16">
-      <a-card>
-        <a-typography-paragraph style="text-align: left">
-          <a-typography-text strong>剧情简介：</a-typography-text>
-          <a-typography-paragraph :content="this.movie_content.summary"
-                                  :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"/>
-        </a-typography-paragraph>
-      </a-card>
-    </a-col>
-    <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-  </a-row>
-  <a-row>
-    <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-    <a-col :xs="16" :sm="16" :md="16" :lg="16" :xl="16" :xxl="16">
-      <div class="image-grid">
+  <div class="page-container">
+    <!-- Hero Section: Movie Details -->
+    <a-card class="movie-hero-card" :bordered="false">
+      <div class="hero-content">
+        <div class="poster-wrapper">
+          <img :src="'http://localhost:8080/image?url=' + this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer" class="movie-poster"/>
+        </div>
+        <div class="info-wrapper">
+          <a-typography-title :level="1" class="movie-title">{{ this.movie_content.name }}</a-typography-title>
+          
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">导演：</span>
+              <span class="info-value">{{ this.movie_content.director }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">主演：</span>
+              <span class="info-value">{{ this.movie_content.actor }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">类型：</span>
+              <a-tag color="blue" v-if="this.movie_content.tag">{{ this.movie_content.tag }}</a-tag>
+            </div>
+             <div class="info-item">
+              <span class="info-label">年份：</span>
+              <span class="info-value">{{ this.movie_content.year }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">地区：</span>
+              <span class="info-value">{{ this.movie_content.region }}</span>
+            </div>
+             <div class="info-item highlight">
+              <span class="info-label">评分：</span>
+              <span class="rating-value">{{ this.movie_content.rate }}</span>
+              <span class="rate-count">({{ this.movie_content.popular }}人评价)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </a-card>
+
+    <!-- Summary Section -->
+    <a-card class="section-card" title="剧情简介" :bordered="false">
+      <a-typography-paragraph :content="this.movie_content.summary"
+                              :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
+                              class="summary-text"/>
+    </a-card>
+
+    <!-- Cast Section -->
+    <a-card class="section-card" title="演职员表" :bordered="false">
+      <div class="cast-grid">
         <a-card
             v-for="(item, itemIndex) in person_list"
             :key="itemIndex"
-            class="image-card"
+            class="cast-card"
             hoverable
             @click="watchPersonDetail(item.personID)"
         >
-          <div class="card-content" v-if="this.person_list.length">
-            <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer"/>
-            <a-card-meta :title="item.name" :description="item.role"/>
+          <div class="cast-image-wrapper">
+             <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer"/>
           </div>
+          <a-card-meta :title="item.name">
+             <template #description>
+               <span class="cast-role">{{ item.role }}</span>
+             </template>
+          </a-card-meta>
         </a-card>
-        <div
-            v-for="(item,itemIndex) in new Array((4 - person_list.length % 4) % 4)"
-            :key="itemIndex"
-            class="image-card"
-        >
-        </div>
+        <!-- Placeholders to keep grid alignment if needed, though flex/grid gaps handle this better usually -->
+        <div v-for="i in (4 - (person_list.length % 4)) % 4" :key="'placeholder-'+i" class="cast-card-placeholder"></div>
       </div>
-      <div class="pagination-wrapper">
+       <div class="pagination-wrapper">
         <a-pagination show-less-items v-model:current="current1" show-quick-jumper :total="this.count1"
                       :default-page-size="4" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange1"/>
       </div>
-    </a-col>
-    <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-  </a-row>
-  <a-row>
-    <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-    <a-col :xs="16" :sm="16" :md="16" :lg="16" :xl="16" :xxl="16">
-      <a-comment>
-        <template #avatar>
-          <a-avatar :src="UserImage"/>
-        </template>
-        <template #content>
-          <a-form-item>
-            <a-textarea v-model:value="new_comment" :rows="4"/>
-          </a-form-item>
-          <a-form-item v-if="disable()">
-            <a-button html-type="submit" :loading="submitting"
-                      @click="submitComment">
-              添加评论
-            </a-button>
-          </a-form-item>
-          <a-form-item v-if="!disable()">
-            <a-button disabled>登录以发表评论</a-button>
-          </a-form-item>
-        </template>
-      </a-comment>
+    </a-card>
+
+    <!-- Comments Section -->
+    <a-card class="section-card" title="评论" :bordered="false">
+      <div class="comment-input-section">
+        <a-comment>
+          <template #avatar>
+            <a-avatar :src="UserImage" size="large"/>
+          </template>
+          <template #content>
+            <a-form-item>
+              <a-textarea v-model:value="new_comment" :rows="4" placeholder="写下你的评论..." />
+            </a-form-item>
+            <a-form-item>
+              <a-button v-if="disable()" type="primary" html-type="submit" :loading="submitting" @click="submitComment">
+                添加评论
+              </a-button>
+               <a-button v-else disabled>登录以发表评论</a-button>
+            </a-form-item>
+          </template>
+        </a-comment>
+      </div>
+
       <a-list
           class="comment-list"
           item-layout="horizontal"
@@ -116,22 +104,20 @@
       >
         <template #renderItem="{ item }">
           <a-list-item>
-            <a-comment :author="item.nickname" :avatar="item.avatar">
+            <a-comment :author="item.nickname" :avatar="item.avatar || UserImage">
               <template #content>
-                <a-typography-paragraph style="text-align: left">
-                  {{ item.comment }}
-                </a-typography-paragraph>
+                 <div class="comment-text">{{ item.comment }}</div>
               </template>
             </a-comment>
           </a-list-item>
         </template>
       </a-list>
-    </a-col>
-    <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
-  </a-row>
-  <div class="pagination-wrapper">
-    <a-pagination show-less-items v-model:current="current2" show-quick-jumper :total="this.count2"
-                  :default-page-size="8" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange2"/>
+      
+      <div class="pagination-wrapper">
+        <a-pagination show-less-items v-model:current="current2" show-quick-jumper :total="this.count2"
+                      :default-page-size="8" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange2"/>
+      </div>
+    </a-card>
   </div>
 </template>
 
@@ -284,29 +270,203 @@ import UserImage from '@/assets/meow.jpg';
 </script>
 
 <style scoped>
-.pagination-wrapper {
-  margin-top: 32px;
-  text-align: center;
-  padding-bottom: 24px;
+.page-container {
+  max-width: 1200px; /* Standardize width */
+  margin: 0 auto;
+  padding: 24px;
+  background-color: #f5f7fa; /* Light grey background for the whole page area */
+  text-align: left; /* Fix global center alignment */
 }
 
-.image-grid {
+/* Common Card Styles */
+.movie-hero-card, .section-card {
+  margin-bottom: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* Soft shadow */
+  background: white;
+  overflow: hidden;
+}
+
+/* Hero Section */
+.hero-content {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  flex-direction: row;
+  gap: 32px;
+  padding: 24px;
 }
 
-.image-card {
-  width: 20%; /* Adjust this to control the card width */
-  margin: 20px 20px 20px 25px;
+.poster-wrapper {
+  flex-shrink: 0;
+  width: 240px;
 }
 
-.card-content {
+.movie-poster {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  object-fit: cover;
+}
+
+.info-wrapper {
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-img {
-  max-width: 100%;
+.movie-title {
+  margin-bottom: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  align-items: baseline;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+  width: 80px; /* Fixed label width for alignment */
+  flex-shrink: 0;
+}
+
+.info-value {
+  color: #333;
+}
+
+.highlight {
+  margin-top: 12px;
+  align-items: center;
+}
+
+.rating-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #faad14; /* Amber color for rating */
+  margin-right: 8px;
+}
+
+.rate-count {
+  font-size: 13px;
+  color: #999;
+}
+
+/* Summary Section */
+.summary-text {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #444;
+}
+
+/* Cast Section */
+.cast-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between; /* Distribute space */
+  gap: 24px;
+}
+
+.cast-card {
+  width: calc(25% - 18px); /* 4 items per row accounting for gap */
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  border: 1px solid #f0f0f0;
+}
+
+.cast-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.cast-image-wrapper {
+  height: 280px; /* Fixed height for consistency */
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cast-image-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cast-role {
+  font-size: 12px;
+  color: #888;
+}
+
+/* Placeholders for grid alignment */
+.cast-card-placeholder {
+  width: calc(25% - 18px);
+}
+
+/* Comments Section */
+.comment-input-section {
+  margin-bottom: 32px;
+}
+
+.comment-list .ant-list-item {
+  padding: 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.comment-text {
+  font-size: 14px;
+  color: #333;
+}
+
+/* Pagination */
+.pagination-wrapper {
+  margin-top: 32px;
+  text-align: center;
+  padding-bottom: 12px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .hero-content {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .poster-wrapper {
+    width: 180px;
+    margin-bottom: 16px;
+  }
+  
+  .info-wrapper {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .info-item {
+    justify-content: center;
+  }
+  
+  .info-label {
+    width: auto;
+    margin-right: 8px;
+  }
+  
+  .cast-card {
+    width: calc(50% - 12px); /* 2 items per row on mobile */
+  }
+  
+  .cast-card-placeholder {
+     width: calc(50% - 12px);
+  }
 }
 </style>
