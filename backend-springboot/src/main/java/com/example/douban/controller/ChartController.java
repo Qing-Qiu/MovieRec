@@ -8,7 +8,7 @@ import com.example.douban.service.MovieService;
 import jakarta.annotation.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.wltea.analyzer.cfg.DefaultConfig;
+
 import org.wltea.analyzer.core.IKSegmenter;
 import org.wltea.analyzer.core.Lexeme;
 
@@ -108,9 +108,7 @@ public class ChartController {
                 words.append(movie.getGenre());
             }
             Map<String, Integer> frequencies = new HashMap<>();
-            DefaultConfig conf = new DefaultConfig();
-            conf.setUseSmart(true);
-            IKSegmenter segmenter = new IKSegmenter(new StringReader(words.toString()), conf);
+            IKSegmenter segmenter = new IKSegmenter(new StringReader(words.toString()), true);
             Lexeme lexeme;
             while ((lexeme = segmenter.next()) != null) {
                 if (lexeme.getLexemeText().length() > 1) {
