@@ -1,72 +1,107 @@
 <template>
-  <a-layout style="height: auto">
-    <a-layout-sider v-model:collapsed="collapsed" :trigger="null" collapsible style="height: auto; position: fixed">
-      <img :src="(collapsed ? require('../assets/logo2.svg') : require('../assets/logo.svg'))"
-           style="cursor: pointer; stroke-opacity: 0" alt="movie safari"/>
-      <a-menu v-model:selectedKeys="$route.meta.selects"
-              :openKeys="openKeys" theme="dark" mode="inline"
-              style="height: 100vh;">
+  <a-layout style="min-height: 100vh">
+    <a-layout-sider
+        v-model:collapsed="collapsed"
+        :trigger="null"
+        collapsible
+        class="custom-sider"
+        width="260"
+    >
+      <div class="logo-container">
+        <img
+            :src="(collapsed ? require('../assets/logo2.svg') : require('../assets/logo.svg'))"
+            class="logo-img"
+            alt="movie safari"
+            @click="handleLogoClick"
+        />
+      </div>
+      
+      <a-menu
+          v-model:selectedKeys="$route.meta.selects"
+          v-model:openKeys="openKeys"
+          theme="dark"
+          mode="inline"
+          class="custom-menu"
+      >
         <a-menu-item key="1" @click="handleMenuClick('1')">
-          <home-outlined/>
+          <template #icon><HomeOutlined /></template>
           <span>首页</span>
         </a-menu-item>
         <a-menu-item key="2" @click="handleMenuClick('2')">
-          <PlayCircleOutlined/>
+          <template #icon><PlayCircleOutlined /></template>
           <span>电影中心</span>
         </a-menu-item>
-        <a-sub-menu key="3" title="其他功能">
+        
+        <a-sub-menu key="3" title="功能中心">
+          <template #icon><AppstoreOutlined /></template>
           <a-menu-item key="3-1" @click="handleMenuClick('3-1')">
-            <SettingOutlined/>
-            <span>大模型嵌套</span>
+            <template #icon><SettingOutlined /></template>
+            <span>大模型展示</span>
           </a-menu-item>
           <a-menu-item key="3-2" @click="handleMenuClick('3-2')">
-            <BarChartOutlined/>
-            <span>可视化展示</span>
+            <template #icon><BarChartOutlined /></template>
+            <span>数据可视化</span>
           </a-menu-item>
           <a-menu-item key="3-3" @click="handleMenuClick('3-3')">
-            <CustomerServiceOutlined/>
+            <template #icon><CustomerServiceOutlined /></template>
             <span>音乐播放</span>
           </a-menu-item>
         </a-sub-menu>
+        
+        <div class="menu-divider"></div>
+        
         <a-menu-item key="4" @click="handleMenuClick('4')">
-          <GithubOutlined/>
-          <span>关于作者</span>
+          <template #icon><GithubOutlined /></template>
+          <span>关于项目</span>
         </a-menu-item>
       </a-menu>
     </a-layout-sider>
-    <a-layout :style="{ marginLeft:(collapsed?'80px':'200px')}">
-      <a-layout-header style="background: #fff; padding: 0;display: flex;align-items: center">
-        <menu-unfold-outlined
-            v-if="collapsed"
-            class="trigger"
-            @click="() => (collapsed = !collapsed)"
-        />
-        <menu-fold-outlined v-else class="trigger" @click="() => (collapsed = !collapsed)"/>
-        <MusicPlayer/>
-        <a-typography-text
-            style="margin-left: auto;
-                  margin-right: 10px;
-                  margin-bottom: -15px;">{{ nickname }}
-        </a-typography-text>
-        <a-dropdown class="avatar-container">
-          <a-avatar :src="UserImage" :size="50" style="cursor: pointer;"/>
-          <template #overlay>
-            <a-menu>
-              <a-menu-item :key="5" @click="handleMenuClick('5')">
-                登出
-              </a-menu-item>
-            </a-menu>
-          </template>
-        </a-dropdown>
+    
+    <a-layout class="site-layout">
+      <a-layout-header class="site-header">
+        <div class="header-left">
+          <menu-unfold-outlined
+              v-if="collapsed"
+              class="trigger"
+              @click="() => (collapsed = !collapsed)"
+          />
+          <menu-fold-outlined v-else class="trigger" @click="() => (collapsed = !collapsed)"/>
+        </div>
+
+        <div class="header-right">
+           <div class="music-player-wrapper">
+             <MusicPlayer/>
+           </div>
+          
+          <a-dropdown>
+            <div class="user-profile">
+              <span class="username">{{ nickname }}</span>
+              <a-avatar :src="UserImage" :size="40" class="user-avatar"/>
+            </div>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item key="profile">
+                  <UserOutlined /> 个人中心
+                </a-menu-item>
+                <a-menu-divider />
+                <a-menu-item key="logout" @click="handleMenuClick('5')">
+                  <LogoutOutlined /> 退出登录
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
+        </div>
       </a-layout-header>
-      <a-layout-content
-          :style="{ margin:'0', padding: '0', background: '#fff', minHeight: '100vh' }"
-      >
-        <slot/>
+      
+      <a-layout-content class="site-content">
+        <div class="content-wrapper">
+          <slot/>
+        </div>
       </a-layout-content>
     </a-layout>
   </a-layout>
 </template>
+
 <script>
 import {
   PlayCircleOutlined,
@@ -76,7 +111,10 @@ import {
   MenuFoldOutlined,
   HomeOutlined,
   CustomerServiceOutlined,
-  GithubOutlined
+  GithubOutlined,
+  AppstoreOutlined,
+  UserOutlined,
+  LogoutOutlined
 } from "@ant-design/icons-vue";
 import router from "@/router/router";
 
@@ -89,7 +127,10 @@ export default {
     GithubOutlined,
     MenuUnfoldOutlined,
     MenuFoldOutlined,
-    HomeOutlined
+    HomeOutlined,
+    AppstoreOutlined,
+    UserOutlined,
+    LogoutOutlined
   },
   data() {
     return {
@@ -97,10 +138,12 @@ export default {
       nickname: '',
       collapsed: false,
       openKeys: ['3'],
-      // selectedKeys: ['1'],
     }
   },
   methods: {
+    handleLogoClick() {
+        router.push({path: '/home'});
+    },
     handleMenuClick(key) {
       switch (key) {
         case '1':
@@ -133,13 +176,10 @@ export default {
   mounted() {
     this.username = sessionStorage.getItem('username');
     this.nickname = sessionStorage.getItem('nickname');
-    if (this.nickname === null || this.username === null) {
+    if (!this.nickname) {
       this.nickname = "游客";
-      this.username = "游客";
+      this.username = "Guest";
     }
-    //获取当前用户的id和昵称
-    console.log(this.username);
-    console.log(this.nickname);
   }
 }
 </script>
@@ -150,33 +190,112 @@ import MusicPlayer from "@/components/MusicPlayer";
 </script>
 
 <style scoped>
-.trigger {
-  font-size: 18px;
-  line-height: 64px;
+/* Sider Customization */
+.custom-sider {
+  box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+  z-index: 10;
+  background: #001529;
+}
+
+.logo-container {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #002140;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.logo-img {
+  height: 40px;
+  transition: all 0.3s;
+}
+
+.custom-menu {
+  border-right: none;
+  font-size: 15px;
+  padding-top: 10px;
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: rgba(255,255,255,0.1);
+  margin: 10px 20px;
+}
+
+/* Header Customization */
+.site-header {
+  background: #fff;
   padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0,21,41,0.08);
+  height: 64px;
+  z-index: 9;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.trigger {
+  font-size: 20px;
   cursor: pointer;
   transition: color 0.3s;
+  padding: 0 12px;
+  border-radius: 4px; 
 }
 
 .trigger:hover {
   color: #1890ff;
+  background: rgba(0,0,0,0.025);
 }
 
-.logo {
-  /*height: 32px;*/
-  /*background: rgba(255, 255, 255, 0.3);*/
-  /*margin: 16px;*/
-
-  font-family: cursive; /* 使用一个手写艺术字体 */
-  font-size: 20px;
-  color: #1890ff; /* 设置字体颜色 */
-  text-align: center; /* 文本居中 */
-  padding: 16px; /* 内边距 */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
-.avatar-container {
-  margin-bottom: -15px;
-  margin-right: 20px;
-  /*margin-left: auto;*/
+.music-player-wrapper {
+  margin-right: 15px;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 20px;
+  transition: background 0.3s;
+}
+
+.user-profile:hover {
+  background: rgba(0,0,0,0.025);
+}
+
+.username {
+  font-weight: 500;
+  margin-right: 10px;
+  color: #333;
+}
+
+.user-avatar {
+  border: 1px solid #f0f0f0;
+}
+
+/* Content Area */
+.site-content {
+  margin: 0;
+  background: #f5f7fa; /* Light grey background for better contrast */
+  overflow-y: auto;
+}
+
+.content-wrapper {
+  min-height: 100%;
 }
 </style>
