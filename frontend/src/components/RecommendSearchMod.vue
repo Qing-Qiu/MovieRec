@@ -82,7 +82,7 @@
             </a-col>
           </a-row>
           <div class="pagination-wrapper" v-if="count1 > 4">
-             <a-pagination v-model:current="current1" show-less-items :total="count1" :default-page-size="4" :show-size-changer="false" @change="onChange1"/>
+             <a-pagination v-model:current="current1" show-less-items :total="count1" :default-page-size="4" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange1"/>
           </div>
         </div>
 
@@ -104,7 +104,7 @@
             </a-col>
           </a-row>
            <div class="pagination-wrapper" v-if="count2 > 8">
-            <a-pagination v-model:current="current2" show-less-items :total="count2" :default-page-size="8" :show-size-changer="false" @change="onChange2"/>
+            <a-pagination v-model:current="current2" show-less-items :total="count2" :default-page-size="8" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange2"/>
           </div>
         </div>
         
@@ -368,8 +368,9 @@ export default {
 
 /* Pagination Styling */
 .pagination-wrapper {
-  margin-top: 24px;
+  margin-top: 32px;
   text-align: center;
+  padding-bottom: 24px;
 }
 
 .back-btn-wrapper {

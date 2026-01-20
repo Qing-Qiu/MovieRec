@@ -104,6 +104,7 @@
             :total="count"
             :default-page-size="8" 
             :show-size-changer="false" 
+            :show-total="total => `共 ${total} 条`"
             @change="onChange"
          />
       </div>

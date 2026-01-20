@@ -34,7 +34,7 @@
             <template #renderItem="{ item, index }">
               <a-list-item class="song-item">
                 <div class="song-info">
-                  <div class="song-index">{{ (page_num - 1) * 10 + index + 1 }}</div>
+                  <div class="song-index">{{ (page_num - 1) * 30 + index + 1 }}</div>
                   <div class="song-details">
                     <div class="song-name">{{ item.name }}</div>
                     <div class="song-artist"><UserOutlined /> {{ item.artist }}</div>
@@ -57,13 +57,11 @@
           </a-list>
           
           <div class="pagination-wrapper">
-            <a-pagination 
-              v-model:current="page_num" 
-              :total="500" 
-              :show-size-changer="false" 
-              @change="handlePageChange"
-              show-quick-jumper
-            />
+             <a-space>
+                <a-button @click="changePage(-1)" :disabled="page_num <= 1">上一页</a-button>
+                <span style="margin: 0 10px">第 {{ page_num }} 页</span>
+                <a-button @click="changePage(1)" :disabled="song_list.length < 30">下一页</a-button>
+             </a-space>
           </div>
         </template>
         
@@ -97,6 +95,7 @@ const formState = reactive({
 });
 let song_list = ref([]);
 let page_num = ref(1);
+let search_total = ref(0);
 let hasSearched = ref(false); // Track if a search has been performed
 const counter = useCounterStore();
 
@@ -116,17 +115,32 @@ const handlePageChange = async (page) => {
   await fetchSongs();
 }
 
+const changePage = async (delta) => {
+  page_num.value += delta;
+  if (page_num.value < 1) page_num.value = 1;
+  await fetchSongs();
+}
+
 // Separate fetch logic for reuse
 const fetchSongs = async () => {
   try {
     const response = await axios.get(
         'http://localhost:5000/search?key=' + formState.search + '&pn=' + page_num.value
     );
-    song_list.value = response.data;
+    
+    if (response.data && response.data.list) {
+        song_list.value = response.data.list;
+        search_total.value = parseInt(response.data.total) || 0;
+    } else {
+        // Fallback for backward compatibility
+        song_list.value = response.data;
+        search_total.value = 600; 
+    }
   } catch (error) {
     console.error("Search failed:", error);
     message.error("搜索失败，请稍后重试");
     song_list.value = [];
+    search_total.value = 0;
   }
 }
 
@@ -277,7 +291,7 @@ const playSong = async (rid) => {
 .pagination-wrapper {
   margin-top: 32px;
   text-align: center;
-  padding-bottom: 16px;
+  padding-bottom: 24px;
 }
 
 .initial-state {

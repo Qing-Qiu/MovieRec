@@ -79,9 +79,9 @@
         >
         </div>
       </div>
-      <div>
+      <div class="pagination-wrapper">
         <a-pagination show-less-items v-model:current="current1" show-quick-jumper :total="this.count1"
-                      :default-page-size="4" :show-size-changer="false" @change="onChange1"/>
+                      :default-page-size="4" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange1"/>
       </div>
     </a-col>
     <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
@@ -129,9 +129,9 @@
     </a-col>
     <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
   </a-row>
-  <div>
+  <div class="pagination-wrapper">
     <a-pagination show-less-items v-model:current="current2" show-quick-jumper :total="this.count2"
-                  :default-page-size="8" :show-size-changer="false" @change="onChange2"/>
+                  :default-page-size="8" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange2"/>
   </div>
 </template>
 
@@ -284,6 +284,11 @@ import UserImage from '@/assets/meow.jpg';
 </script>
 
 <style scoped>
+.pagination-wrapper {
+  margin-top: 32px;
+  text-align: center;
+  padding-bottom: 24px;
+}
 
 .image-grid {
   display: flex;

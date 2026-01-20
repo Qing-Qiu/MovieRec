@@ -43,7 +43,7 @@ def kuwoAPI():
                 'pic': pic
             }
             search.append(tempList)
-        return json.dumps(obj=search, ensure_ascii=False)
+        return json.dumps(obj={'total': responseJson.get('TOTAL'), 'list': search}, ensure_ascii=False)
     except Exception as e:
         print(f'Server Error: {format(str(e))}')
         print(responseText)
