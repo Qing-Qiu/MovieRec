@@ -3,7 +3,7 @@
     <a-row>
       <a-col :xs="4" :sm="4" :md="4" :lg="4" :xl="4" :xxl="4"></a-col>
       <a-col :xs="8" :sm="8" :md="8" :lg="8" :xl="8" :xxl="8">
-        <img :src="this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer"
+        <img :src="'http://localhost:8080/image?url=' + this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer"
              style="display: block;width: auto"
         />
       </a-col>
@@ -68,7 +68,7 @@
             @click="watchPersonDetail(item.personID)"
         >
           <div class="card-content" v-if="this.person_list.length">
-            <img :src="item.img" :alt="item.name" referrerpolicy="no-referrer"/>
+            <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer"/>
             <a-card-meta :title="item.name" :description="item.role"/>
           </div>
         </a-card>

@@ -46,7 +46,7 @@
                 @click="watchMovieDetail(item.id)"
             >
               <div class="card-content" v-if="recommendedImages.length">
-                <img :src="item.image" :alt="item.title" referrerpolicy="no-referrer"/>
+                <img :src="'http://localhost:8080/image?url=' + item.image" :alt="item.title" referrerpolicy="no-referrer"/>
                 <a-card-meta :title="item.title" :description="item.description"/>
               </div>
             </a-card>
@@ -74,7 +74,7 @@
                 @click="watchPersonDetail(item.personID)"
             >
               <div class="card-content" v-if="this.person_list.length">
-                <img :src="item.img" :alt="item.name" referrerpolicy="no-referrer"/>
+                <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer"/>
                 <a-card-meta :title="item.name" :description="item.role"/>
               </div>
             </a-card>
@@ -107,7 +107,7 @@
                 @click="watchMovieDetail(item.movieID)"
             >
               <div class="card-content" v-if="this.movie_list.length">
-                <img :src="item.img" :alt="item.name" referrerpolicy="no-referrer"/>
+                <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer"/>
                 <a-card-meta :title="item.name" :description="item.role"/>
               </div>
             </a-card>

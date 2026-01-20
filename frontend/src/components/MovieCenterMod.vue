@@ -59,7 +59,7 @@
             @click="watchMovieDetail(item.id)"
         >
           <div class="card-content" v-if="this.movie_list.length">
-            <img :src="item.image" :alt="item.title" referrerpolicy="no-referrer"/>
+            <img :src="'http://localhost:8080/image?url=' + item.image" :alt="item.title" referrerpolicy="no-referrer"/>
             <a-card-meta :title="item.title" :description="item.description"/>
           </div>
         </a-card>
