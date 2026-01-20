@@ -6,6 +6,7 @@
             v-model:value="formState.search"
             placeholder="Search for movies, actors, directors..."
             size="large"
+            enter-button
             @search="submitForm"
             class="custom-search"
         />
