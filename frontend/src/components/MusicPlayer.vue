@@ -1,14 +1,14 @@
 <template>
   <div class="music-player-container" :class="{ 'is-expanded': isExpanded }" v-if="counter.music_url">
     <!-- Minimized Player (Floating Button) -->
-    <div class="mini-player" @click="toggleExpand" v-if="!isExpanded">
+    <div class="mini-player" @click="toggleExpand" v-show="!isExpanded">
       <div class="mini-disc" :class="{ 'rotating': isPlaying }">
         <CustomerServiceOutlined class="mini-icon" />
       </div>
     </div>
 
     <!-- Expanded Player (Bottom Bar) -->
-    <div class="player-panel" v-else>
+    <div class="player-panel" v-show="isExpanded">
       <div class="player-controls">
         <!-- Close Button -->
         <div class="close-btn" @click="toggleExpand">
