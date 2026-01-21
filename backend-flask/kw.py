@@ -1,7 +1,9 @@
 import base64
+import requests
+import json
+import re
 
-
-class KwApi():
+class KwApi:
     DES_MODE_DECRYPT = 1
 
     arrayE = [
@@ -119,15 +121,17 @@ class KwApi():
 
     SECRET_KEY = b'ylzsxkwm'
 
-    def bit_transform(self, arr_int, n, l):
+    @classmethod
+    def bit_transform(cls, arr_int, n, l):
         l2 = 0
         for i in range(n):
-            if arr_int[i] < 0 or (l & self.arrayMask[arr_int[i]] == 0):
+            if arr_int[i] < 0 or (l & cls.arrayMask[arr_int[i]] == 0):
                 continue
-            l2 |= self.arrayMask[i]
+            l2 |= cls.arrayMask[i]
         return l2
 
-    def DES64(self, longs, l):
+    @classmethod
+    def DES64(cls, longs, l):
         out = 0
         SOut = 0
         pR = [0] * 8
@@ -136,42 +140,44 @@ class KwApi():
         t = 0
         L = 0
         R = 0
-        out = self.bit_transform(self, self.arrayIP, 64, l)
+        out = cls.bit_transform(cls.arrayIP, 64, l)
         pSource[0] = 0xFFFFFFFF & out
         pSource[1] = (-4294967296 & out) >> 32
         for i in range(16):
             R = pSource[1]
-            R = self.bit_transform(self, self.arrayE, 64, R)
+            R = cls.bit_transform(cls.arrayE, 64, R)
             R ^= longs[i]
             for j in range(8):
                 pR[j] = 255 & R >> j * 8
             SOut = 0
             for sbi in range(7, -1, -1):
                 SOut <<= 4
-                SOut |= self.matrixNSBox[sbi][pR[sbi]]
+                SOut |= cls.matrixNSBox[sbi][pR[sbi]]
 
-            R = self.bit_transform(self, self.arrayP, 32, SOut)
+            R = cls.bit_transform(cls.arrayP, 32, SOut)
             L = pSource[0]
             pSource[0] = pSource[1]
             pSource[1] = L ^ R
         pSource = pSource[::-1]
         out = -4294967296 & pSource[1] << 32 | 0xFFFFFFFF & pSource[0]
-        out = self.bit_transform(self, self.arrayIP_1, 64, out)
+        out = cls.bit_transform(cls.arrayIP_1, 64, out)
         return out
 
-    def sub_keys(self, l, longs, n):
-        l2 = self.bit_transform(self, self.arrayPC_1, 56, l)
+    @classmethod
+    def sub_keys(cls, l, longs, n):
+        l2 = cls.bit_transform(cls.arrayPC_1, 56, l)
         for i in range(16):
-            l2 = ((l2 & self.arrayLsMask[self.arrayLs[i]]) << 28 -
-                  self.arrayLs[i] | (l2 & ~self.arrayLsMask[self.arrayLs[i]]) >> self.arrayLs[i])
-            longs[i] = self.bit_transform(self, self.arrayPC_2, 64, l2)
+            l2 = ((l2 & cls.arrayLsMask[cls.arrayLs[i]]) << 28 -
+                  cls.arrayLs[i] | (l2 & ~cls.arrayLsMask[cls.arrayLs[i]]) >> cls.arrayLs[i])
+            longs[i] = cls.bit_transform(cls.arrayPC_2, 64, l2)
         j = 0
         while n == 1 and j < 8:
             l3 = longs[j]
             longs[j], longs[15 - j] = longs[15 - j], longs[j]
             j += 1
 
-    def encrypt(self, msg, key=SECRET_KEY):
+    @classmethod
+    def encrypt(cls, msg, key=SECRET_KEY):
         if isinstance(msg, str):
             msg = msg.encode()
         if isinstance(key, str):
@@ -179,36 +185,28 @@ class KwApi():
         assert (isinstance(msg, bytes))
         assert (isinstance(key, bytes))
 
-        # 处理密钥块
         l = 0
         for i in range(8):
             l = l | key[i] << i * 8
 
         j = len(msg) // 8
-        # arrLong1 存放的是转换后的密钥块, 在解密时只需要把这个密钥块反转就行了
         arrLong1 = [0] * 16
-        self.sub_keys(self, l, arrLong1, 0)
-        # arrLong2 存放的是前部分的明文
+        cls.sub_keys(l, arrLong1, 0)
         arrLong2 = [0] * j
         for m in range(j):
             for n in range(8):
                 arrLong2[m] |= msg[n + m * 8] << n * 8
 
-        # 用于存放密文
         arrLong3 = [0] * ((1 + 8 * (j + 1)) // 8)
-        # 计算前部的数据块(除了最后一部分)
         for i1 in range(j):
-            arrLong3[i1] = self.DES64(self, arrLong1, arrLong2[i1])
+            arrLong3[i1] = cls.DES64(arrLong1, arrLong2[i1])
 
-        # 保存多出来的字节
         arrByte1 = msg[j * 8:]
         l2 = 0
         for i1 in range(len(msg) % 8):
             l2 |= arrByte1[i1] << i1 * 8
-        # 计算多出的那一位(最后一位)
-        arrLong3[j] = self.DES64(self, arrLong1, l2)
+        arrLong3[j] = cls.DES64(arrLong1, l2)
 
-        # 将密文转为字节型
         arrByte2 = [0] * (8 * len(arrLong3))
         i4 = 0
         for l3 in arrLong3:
@@ -217,12 +215,166 @@ class KwApi():
                 i4 += 1
         return arrByte2
 
-    def base64_encrypt(self, msg):
-        b1 = self.encrypt(self, msg)
+    @classmethod
+    def base64_encrypt(cls, msg):
+        b1 = cls.encrypt(msg)
         b2 = bytearray(b1)
         s = base64.encodebytes(b2)
         return s.replace(b'\n', b'').decode()
 
+    @classmethod
+    def get_mp3_url(cls, rid, br='320kmp3'):
+        # Construct the query URL
+        query = f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br={br}&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download"
+        encrypted_query = cls.base64_encrypt(query)
+        url = f'http://mobi.kuwo.cn/mobi.s?f=kuwo&q={encrypted_query}'
+        
+        # We need to fetch this URL to get the ACTUAL mp3 link (which is in the body of the response)
+        try:
+           headers = {
+               "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.50",
+               "csrf": "96Y8RG5X3X64",
+               "Referer": "https://www.kuwo.cn"
+           }
+           # Try fetching
+           resp = requests.get(url, headers=headers, timeout=5)
+           pattern = r'url=(.*)'
+           match = re.search(pattern, resp.text)
+           if match and match.group(1):
+               return match.group(1).strip()
+           else:
+               # Try to parse properties if it's line separated
+               for line in resp.text.splitlines():
+                   if line.startswith('url='):
+                       return line.split('=', 1)[1].strip()
+        except:
+            return None 
+        return None
+
+    @classmethod
+    def search(cls, key, pn=0, rn=30):
+        url = f'http://search.kuwo.cn/r.s?pn={pn}&rn={rn}&all={key}&ft=music&newsearch=1&alflac=1&itemset=web_2013&client=kt&cluster=0&vermerge=1&rformat=json&encoding=utf8&show_copyright_off=1&pcmp4=1&ver=mbox&plat=pc&vipver=MUSIC_9.2.0.0_W6&devid=11404450&newver=1&issubtitle=1&pcjson=1'
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.188'
+        }
+        try:
+            responseText = requests.get(url=url, headers=headers).text
+            # The API returns a JavaScript object, not strict JSON.
+            # Using eval is the most robust way to parse this legacy format 
+            # where keys might be unquoted or single quoted, and values might contain escaped quotes.
+            # Security Note: This connects to a specific known music API.
+            try:
+                responseJson = eval(responseText)
+            except Exception:
+                # If eval fails, try cleaning as fallback
+                cleaned_text = responseText.replace("'", '"')
+                responseJson = json.loads(cleaned_text)
+            
+            search_results = []
+            if responseJson.get("abslist"):
+                for song in responseJson.get("abslist"):
+                    try:
+                        # Extract images
+                        pic = ""
+                        if song.get('web_albumpic_short'):
+                             p = song.get('web_albumpic_short')
+                             if "120" in p: p = p.replace("120", "300")
+                             pic = f'https://img4.kuwo.cn/star/albumcover/{p}'
+                        elif song.get('web_artistpic_short'):
+                             p = song.get('web_artistpic_short')
+                             if "120" in p: p = p.replace("120", "300")
+                             pic = f'https://img1.kuwo.cn/star/starheads/{p}'
+                        
+                        search_results.append({
+                            'name': song.get('SONGNAME'),
+                            'artist': song.get('ARTIST'),
+                            'rid': int(song.get('DC_TARGETID')),
+                            'pic': pic,
+                            'album': song.get('ALBUM')
+                        })
+                    except:
+                        continue
+            
+            return {'total': responseJson.get('TOTAL'), 'list': search_results}
+        except Exception as e:
+            print(f"Search API Error: {e}")
+            return {'total': 0, 'list': []}
+
+    @classmethod
+    def get_lrc(cls, rid):
+        import subprocess
+        import json
+        import sys
+        import os
+        
+        # We shell out to a clean python process to bypass environment issues (like gevent patching)
+        # that seem to trigger anti-bot protection on the Kuwo API when running inside Flask.
+        script = f"""
+import urllib.request
+import json
+import uuid
+import os
+import sys
+
+def fetch():
+    # Clean proxies from env if present
+    if 'HTTP_PROXY' in os.environ: del os.environ['HTTP_PROXY']
+    if 'HTTPS_PROXY' in os.environ: del os.environ['HTTPS_PROXY']
+    
+    rid = {rid}
+    req_id = str(uuid.uuid4())
+    url = f'https://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId={{rid}}&httpsStatus=1&reqId={{req_id}}'
+    headers = {{
+        'User-Agent': 'Mozilla/5.0'
+    }}
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = response.read().decode('utf-8')
+            print(data)
+    except Exception as e:
+        print(json.dumps({{'error': str(e)}}))
+
+if __name__ == '__main__':
+    fetch()
+"""
+        try:
+            env = os.environ.copy()
+            env.pop('HTTP_PROXY', None)
+            env.pop('HTTPS_PROXY', None)
+            env.pop('ALL_PROXY', None)
+            
+            result = subprocess.run(
+                [sys.executable, "-c", script], 
+                capture_output=True, 
+                text=True, 
+                timeout=10,
+                encoding='utf-8',
+                env=env
+            )
+            
+            output = result.stdout.strip()
+            
+            try:
+                # Find the JSON part if there is any preceding text
+                json_start = output.find('{')
+                if json_start != -1:
+                    json_str = output[json_start:]
+                    data = json.loads(json_str)
+                else:
+                    data = {}
+            except:
+                return []
+
+            if data.get("data") and data["data"].get("lrclist"):
+                return data["data"]["lrclist"]
+            
+        except Exception:
+            pass
+        return []
 
 def kwFirstUrl(rid, br='320kmp3'):
-    return f'http://mobi.kuwo.cn/mobi.s?f=kuwo&q={KwApi.base64_encrypt(KwApi, f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br={br}&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download")}'
+    query = f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br={br}&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download"
+    encrypted = KwApi.base64_encrypt(query)
+    # Return the wrapped URL as before
+    return f'http://mobi.kuwo.cn/mobi.s?f=kuwo&q={encrypted}'
