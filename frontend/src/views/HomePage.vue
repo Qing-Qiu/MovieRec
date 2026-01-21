@@ -4,8 +4,8 @@
       <div class="header-content">
         <!-- Logo -->
         <div class="logo-container" @click="handleLogoClick">
-          <img src="@/assets/logo2.svg" class="logo-img" alt="movie safari" />
-          <span class="app-title">Movie Safari</span>
+          <img src="@/assets/logo2.svg" class="logo-img" alt="movierec" />
+          <span class="app-title">MovieRec</span>
         </div>
 
         <!-- Top Navigation Menu -->
@@ -140,7 +140,7 @@ export default {
           router.push({path: '/music'});
           break;
         case '4':
-          window.open('https://github.com/Qing-Qiu/MovieSafari', '_blank');
+          window.open('https://github.com/Qing-Qiu/MovieRec', '_blank');
           break;
         case '5':
           sessionStorage.clear();

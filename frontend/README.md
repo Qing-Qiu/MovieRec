@@ -1,4 +1,4 @@
-# douban2
+# MovieRec
 
 ## Project setup
 ```
