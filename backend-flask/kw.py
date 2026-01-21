@@ -224,5 +224,5 @@ class KwApi():
         return s.replace(b'\n', b'').decode()
 
 
-def kwFirstUrl(rid):
-    return f'http://mobi.kuwo.cn/mobi.s?f=kuwo&q={KwApi.base64_encrypt(KwApi, f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br=320kmp3&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download")}'
+def kwFirstUrl(rid, br='320kmp3'):
+    return f'http://mobi.kuwo.cn/mobi.s?f=kuwo&q={KwApi.base64_encrypt(KwApi, f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br={br}&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download")}'

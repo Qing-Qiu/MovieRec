@@ -53,26 +53,46 @@ def kuwoAPI():
 @app.route('/mp3')
 def ridKuwoAPI():
     rid = request.args.get('rid')
-    url = kwFirstUrl(rid=rid)
+    # First try with high quality (320kmp3) - Default
+    url = kwFirstUrl(rid=rid, br='320kmp3')
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.50",
         "csrf": "96Y8RG5X3X64",
         "Referer": "https://www.kuwo.cn"
     }
+    
+    music_url = ""
     try:
         music_url = requests.get(url=url, headers=headers, timeout=3).text
     except requests.Timeout:
         print('获取mp3链接超时，正在重试……')
         music_url = requests.get(url=url, headers=headers).text
-    # 正则提取最终url
+
+    # Check if we got a valid URL
     pattern = r'url=(.*)'
     match = re.search(pattern, music_url)
-    if match:
-        music_url = match.group(1)
-        print(f'已获取到mp3文件链接=>{str(music_url)}')
-        return str(music_url)
+    
+    if match and match.group(1):
+        final_url = match.group(1)
+        print(f'已获取到高音质(320k) mp3文件链接 from 320k attempt=>{str(final_url)}')
+        return str(final_url)
+    
+    print("高音质(320k)获取失败，尝试降级到标准音质(128k)...")
+    
+    # Fallback to standard quality (128kmp3)
+    url_fallback = kwFirstUrl(rid=rid, br='128kmp3')
+    try:
+        music_url = requests.get(url=url_fallback, headers=headers, timeout=3).text
+    except requests.Timeout:
+         music_url = requests.get(url=url_fallback, headers=headers).text
+         
+    match_fallback = re.search(pattern, music_url)
+    if match_fallback and match_fallback.group(1):
+        final_url = match_fallback.group(1)
+        print(f'已获取到标准音质(128k) mp3文件链接=>{str(final_url)}')
+        return str(final_url)
     else:
-        print("未找到URL")
+        print("未找到URL (320k and 128k failed)")
         print('Error Info:\n' + music_url)
         abort(500)
 
@@ -85,11 +105,18 @@ def lrcKuwoAPI():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.42'
     }
     try:
-        lrc = requests.get(url=url, headers=headers, timeout=3).json()["data"]["lrclist"]
+        response_json = requests.get(url=url, headers=headers, timeout=3).json()
     except requests.Timeout:
         print('获取歌词超时，正在重试……')
-        lrc = requests.get(url=url, headers=headers).json()["data"]["lrclist"]
-    print('已获取到歌词\n\n')
+        response_json = requests.get(url=url, headers=headers).json()
+        
+    lrc = []
+    if response_json.get("data"):
+        lrc = response_json["data"].get("lrclist", [])
+        print('已获取到歌词\n\n')
+    else:
+        print('无歌词数据\n\n')
+        
     return json.dumps(lrc)
 
 

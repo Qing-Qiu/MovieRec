@@ -116,22 +116,11 @@ const toggleExpand = () => {
 
 // Watch for store changes to re-parse lyrics
 watch(() => counter.music_lrc, (newLrc) => {
-  if (newLrc) {
-    // If lrc is an array of objects (as seen in previous code), we might need to handle it.
-    // Previous code: counter.music_lrc was an array? 
-    // Wait, let's check store type. The store initialized it as ref(''). 
-    // But MusicPlayer.vue treated it as an array (counter.music_lrc[i].time).
-    // The backend likely returns an array describing the lyric directly or a string?
-    // MusicMod.vue called `http://localhost:5000/lrc?rid=`
-    // Let's assume standard string LRC or handle the array if the backend pre-parses it.
-    // Looking at previous MusicPlayer.vue:
-    // `for (let i = 0; i < counter.music_lrc.length; i++)`
-    // `if (parseFloat(counter.music_lrc[i].time) <= currentTime.value)`
-    // This strongly implies the backend returns a JSON array of {time, lineLyric}.
-    
-    // So let's handle that case instead of parsing string.
-    lyricsMap.value = newLrc; 
-    // We'll normalize it to our structure {time, content}
+  // Reset current lyric state whenever song/lyrics change
+  currentLyric.value = 'Loading lyrics...';
+  lyricsMap.value = [];
+
+  if (newLrc && newLrc.length > 0) {
     if (Array.isArray(newLrc)) {
         lyricsMap.value = newLrc.map(item => ({
             time: parseFloat(item.time),
@@ -141,6 +130,12 @@ watch(() => counter.music_lrc, (newLrc) => {
         // Fallback if it is a string
         lyricsMap.value = parseLyrics(newLrc);
     }
+    // Set initial lyric
+    if (lyricsMap.value.length > 0) {
+        currentLyric.value = lyricsMap.value[0].content;
+    }
+  } else {
+    currentLyric.value = '纯音乐 / 暂无歌词';
   }
 }, { immediate: true });
 
