@@ -144,19 +144,80 @@ const fetchSongs = async () => {
   }
 }
 
-const playSong = async (rid) => {
-  try {
-    // Parallel requests for URL and LRC
-    const [urlRes, lrcRes] = await Promise.all([
-      axios.get('http://localhost:5000/mp3?rid=' + rid),
-      axios.get('http://localhost:5000/lrc?rid=' + rid)
-    ]);
+// Track current playing song to prevent race conditions
+const currentRid = ref(null);
 
-    counter.change(urlRes.data, lrcRes.data);
+const playSong = async (rid) => {
+  // Update current ID immediately
+  currentRid.value = rid;
+  
+  try {
+    // 1. Fetch Music URL first (Priority)
+    const urlRes = await axios.get('http://localhost:5000/mp3?rid=' + rid);
+    
+    // Check if user switched songs while waiting
+    if (currentRid.value !== rid) return;
+
+    // Start playing immediately with empty lyrics
+    // This ensures music starts ASAP without waiting for lyrics
+    counter.change(urlRes.data, []); 
     message.success('开始播放');
+
+    // 2. Fetch Lyrics in background with retry logic
+    fetchLyricsWithRetry(rid);
+    
   } catch (error) {
-    console.error("Play failed:", error);
-    message.error("无法播放该歌曲");
+    if (currentRid.value === rid) {
+      console.error("Play failed:", error);
+      message.error("无法播放该歌曲");
+    }
+  }
+}
+
+// Helper to fetch lyrics with retries
+// Strategy: Fast retries initially (for 3s), then slower poling
+const fetchLyricsWithRetry = async (rid, attempts = 0) => {
+  if (currentRid.value !== rid) return;
+  
+  // Max attempts configuration
+  const MAX_ATTEMPTS = 10;
+  if (attempts >= MAX_ATTEMPTS) {
+    console.log(`Stopped retrying lyrics for ${rid} after ${MAX_ATTEMPTS} attempts`);
+    return;
+  }
+
+  try {
+    const lrcRes = await axios.get('http://localhost:5000/lrc?rid=' + rid);
+    
+    // Double check race condition after await
+    if (currentRid.value !== rid) return;
+
+    if (lrcRes.data && lrcRes.data.length > 0) {
+      // Success! Update only the lyrics in the store
+      console.log(`Lyrics found for ${rid} on attempt ${attempts + 1}`);
+      counter.music_lrc = lrcRes.data;
+    } else {
+      // Decide base delay based on attempt count
+      // First 3 retries: fast (500ms)
+      // Afterwards: slow (2000ms)
+      const baseDelay = attempts < 3 ? 500 : 2000;
+      
+      // Add random jitter (perturbation) to avoid synchronized requests
+      // Jitter range: ±20% of the base delay
+      const jitter = (Math.random() * 0.4 - 0.2) * baseDelay;
+      const finalDelay = Math.max(100, Math.floor(baseDelay + jitter));
+      
+      console.log(`Retry lyrics for ${rid} (Attempt ${attempts + 1}/${MAX_ATTEMPTS}), next in ${finalDelay}ms (jittered)`);
+      setTimeout(() => fetchLyricsWithRetry(rid, attempts + 1), finalDelay);
+    }
+  } catch (error) {
+    console.warn("Lyrics fetch error:", error);
+    if (currentRid.value === rid) {
+       const baseDelay = attempts < 3 ? 500 : 2000;
+       const jitter = (Math.random() * 0.4 - 0.2) * baseDelay;
+       const finalDelay = Math.max(100, Math.floor(baseDelay + jitter));
+       setTimeout(() => fetchLyricsWithRetry(rid, attempts + 1), finalDelay);
+    }
   }
 }
 </script>
