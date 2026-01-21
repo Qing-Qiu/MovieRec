@@ -262,6 +262,8 @@ const playSong = async (rid) => {
 .song-details {
   display: flex;
   flex-direction: column;
+  text-align: left;
+  align-items: flex-start;
 }
 
 .song-name {
