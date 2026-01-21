@@ -2,43 +2,87 @@
   <div class="chart-container">
     <div class="header-section">
       <h2 class="chart-title">数据可视化仪表盘</h2>
+      
       <div class="controls-wrapper">
-        <a-segmented v-model:value="value" :options="data" @change="onChange()" class="main-segment"></a-segmented>
+        <!-- Main Chart Type Selector -->
+        <a-segmented 
+          v-model:value="value" 
+          :options="data" 
+          @change="onChange()" 
+          class="main-chart-selector"
+          size="large"
+        >
+          <template #label="{ value: val }">
+            <span style="padding: 0 8px">{{ val }}</span>
+          </template>
+        </a-segmented>
         
-        <div v-if="value==='历年各种类型电影数量（柱状图）'" class="sub-controls">
-           <span class="label">类型筛选:</span>
-           <a-segmented v-model:value="value2" :options="type" @change="onChange()" size="small"></a-segmented>
+        <!-- Bar Chart Filters (Type Selection) -->
+        <div v-if="value==='历年各种类型电影数量（柱状图）'" class="filter-section">
+           <span class="filter-label">选择电影类型:</span>
+           <div class="pill-selector">
+             <div 
+                v-for="item in type" 
+                :key="item"
+                class="pill-item"
+                :class="{ active: value2 === item }"
+                @click="setBarType(item)"
+             >
+               {{ item }}
+             </div>
+           </div>
         </div>
 
-        <div v-if="value === '历年各种类型电影数量（饼图）'" class="sub-controls">
-           <span class="label">年份筛选:</span>
-           <div class="year-groups">
+        <!-- Pie Chart Filters (Year Selection) -->
+        <div v-if="value === '历年各种类型电影数量（饼图）'" class="filter-section">
+           <span class="filter-label">选择年份:</span>
+           <div class="year-selector">
               <a-select
                   v-model:value="value3"
                   show-search
                   placeholder="选择年份"
-                  style="width: 120px"
+                  style="width: 140px"
+                  size="large"
                   @change="onChange()"
+                  class="custom-select"
               >
                 <a-select-option v-for="y in year" :key="y" :value="y">{{ y }}</a-select-option>
               </a-select>
            </div>
         </div>
 
-        <div v-if="value==='我的画像'" class="sub-controls">
-           <template v-if="nickname">
-             <span class="label">形状:</span>
-             <a-segmented v-model:value="value4" :options="shapes" @change="onChange()" size="small"></a-segmented>
-           </template>
-           <template v-else>
-             <a-button type="primary" @click="login()">登录查看画像</a-button>
-           </template>
+        <!-- Word Cloud Filters (Shape Selection) -->
+        <div v-if="value==='我的画像' && nickname" class="filter-section">
+             <span class="filter-label">词云形状:</span>
+             <a-segmented v-model:value="value4" :options="shapes" @change="onChange()" size="middle"></a-segmented>
         </div>
       </div>
     </div>
 
-    <div class="chart-wrapper">
-      <a-spin :spinning="loading" style="width: 100%">
+    <!-- Chart Display Area -->
+    <div class="chart-display-area">
+      <!-- Logic: 
+           1. If My Profile + No Login -> Show Guest UI 
+           2. Else -> Show Chart (with loading spinner)
+      -->
+      <div v-if="value === '我的画像' && !nickname" class="guest-state">
+        <div class="guest-content">
+           <div class="guest-icon">
+             <!-- Simple SVG User Icon -->
+             <svg viewBox="0 0 24 24" width="64" height="64" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="color: #bfbfbf;">
+               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+               <circle cx="12" cy="7" r="4"></circle>
+             </svg>
+           </div>
+           <h3 class="guest-title">查看您的专属画像</h3>
+           <p class="guest-desc">登录后，我们将根据您的观影偏好为您以此生成个性化词云。</p>
+           <a-button type="primary" size="large" @click="login()" class="guest-btn">
+             立即登录
+           </a-button>
+        </div>
+      </div>
+
+      <a-spin v-else :spinning="loading" tip="正在加载数据..." wrapperClassName="chart-loading">
         <div id="graph" class="graph-content"></div>
       </a-spin>
     </div>
@@ -87,6 +131,12 @@ export default {
   },
   methods: {
     async onChange() {
+      // If switching to My Profile and not logged in, do not trigger loading or API call
+      if (this.value === '我的画像' && !this.nickname) {
+        this.loading = false;
+        return;
+      }
+      
       this.loading = true;
       this.requestId++; // Increment ID for new request
       const currentId = this.requestId;
@@ -99,6 +149,11 @@ export default {
          }
       }, 100);
     },
+    setBarType(type) {
+      if (this.value2 === type) return;
+      this.value2 = type;
+      this.onChange();
+    },
     async getGraph(id) {
       this.category = [];
       this.lineData = [];
@@ -106,6 +161,10 @@ export default {
       this.pieData = [];
       this.movieName = [];
       this.keyData = [];
+      
+      // Safety check: if somehow we got here for My Profile without login, abort
+      if (this.value === '我的画像' && !this.nickname) return;
+
       const echarts = await import('echarts');
       if (id !== this.requestId) return; // Check after import
       
@@ -465,87 +524,216 @@ export default {
 <style scoped>
 .chart-container {
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  padding: 32px;
   max-width: 1400px;
-  margin: 20px auto;
-  min-height: 600px;
+  margin: 24px auto;
+  min-height: 650px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  transition: all 0.3s ease;
 }
 
 .header-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  width: 100%;
 }
 
 .chart-title {
-  font-size: 24px;
-  color: #1a1a1a;
-  margin-bottom: 20px;
-  font-weight: 600;
+  font-size: 28px;
+  color: #1f1f1f;
+  margin-bottom: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #1f1f1f 0%, #434343 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .controls-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
   width: 100%;
+  max-width: 1000px;
 }
 
-.main-segment {
-  /* box-shadow: 0 2px 8px rgba(0,0,0,0.04); */
-  font-weight: 500;
+/* Main Chart Selector Style Override */
+.main-chart-selector {
+  background-color: #f5f7fa;
+  border: 1px solid #edf0f5;
+  padding: 4px;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 
-.sub-controls {
+:deep(.ant-segmented-item-selected) {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+  background-color: #fff !important;
+  color: #1890ff !important;
+  border-radius: 8px !important;
+}
+
+:deep(.ant-segmented-item) {
+  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+.filter-section {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
-  animation: fadeIn 0.3s ease;
+  width: 100%;
+  animation: fadeIn 0.4s ease-out;
 }
 
-.label {
+.filter-label {
   font-size: 14px;
-  color: #666;
+  color: #8c8c8c;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Pill Selector for Movie Types */
+.pill-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 8px;
+}
+
+.pill-item {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #555;
+  background-color: #f7f9fc;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.pill-item:hover {
+  background-color: #e6f7ff;
+  color: #1890ff;
+  transform: translateY(-1px);
+}
+
+.pill-item.active {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
   font-weight: 500;
 }
 
-.year-groups {
+/* Custom Select Styling */
+:deep(.ant-select-selector) {
+  border-radius: 8px !important;
+  border-color: #d9d9d9 !important;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.02) !important;
+}
+:deep(.ant-select-focused .ant-select-selector) {
+  border-color: #40a9ff !important;
+  box-shadow: 0 0 0 2px rgba(24,144,255,0.2) !important;
+}
+
+/* Login Prompt */
+.login-prompt {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  background: #fffbe6;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: 1px solid #ffe58f;
+}
+
+.chart-display-area {
+  width: 100%;
+  position: relative;
+  background: #ffffff;
+  border-radius: 12px;
+  /* border: 1px solid #f0f0f0; */
 }
 
 .graph-content {
   width: 100%;
-  max-width: 1200px;
-  height: 550px;
-  border-radius: 8px;
+  height: 600px;
+  border-radius: 12px;
   margin: 0 auto;
-  /* background: #f9f9f9; */
+}
+
+:deep(.ant-spin-nested-loading) {
+  height: 100%;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Customizing segmented controls if needed, usually Ant Design default is okay */
-:deep(.ant-segmented) {
-  background-color: #f0f2f5;
-}
-:deep(.ant-segmented-item-selected) {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
+/* Guest State Styles */
+.guest-state {
+  width: 100%;
+  height: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  border: 2px dashed #e8e8e8;
 }
 
-.chart-wrapper {
-  width: 100%;
+.guest-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 400px;
+  padding: 40px;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.guest-icon {
+  margin-bottom: 24px;
+  padding: 24px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.guest-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin-bottom: 12px;
+}
+
+.guest-desc {
+  font-size: 14px;
+  color: #8c8c8c;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.guest-btn {
+  padding: 0 32px;
+  border-radius: 20px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+  height: 40px;
+}
+
+.guest-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.4);
 }
 </style>
