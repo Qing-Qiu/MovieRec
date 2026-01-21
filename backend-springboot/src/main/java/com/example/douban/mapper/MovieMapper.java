@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.List;
 
 @Mapper
 @Repository
@@ -29,4 +30,8 @@ public interface MovieMapper {
     ArrayList<String> findMovieByNickname(@Param("nickname") String nickname);
 
     ArrayList<String> findMovieByNickname2(@Param("nickname") String nickname);
+
+    ArrayList<Movie> findMoviesByIds(@Param("ids") List<String> ids);
+
+    List<String> findMovieIdsBySequences(@Param("sequences") List<String> sequences);
 }

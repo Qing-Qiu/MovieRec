@@ -168,4 +168,33 @@
         FROM comments
         WHERE nickname = #{nickname};
     </select>
+    <select id="findMoviesByIds" resultType="com.example.douban.pojo.Movie">
+        SELECT movieID,
+        name,
+        director,
+        actor,
+        genre,
+        tag,
+        summary,
+        rate / 2 as rate,
+        popular,
+        year,
+        ratingsum,
+        img,
+        tags,
+        region
+        FROM movie
+        WHERE movieID IN
+        <foreach item="item" index="index" collection="ids" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </select>
+    <select id="findMovieIdsBySequences" resultType="String">
+        SELECT movieID
+        FROM movid
+        WHERE 序号 IN
+        <foreach item="item" index="index" collection="sequences" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </select>
 </mapper>

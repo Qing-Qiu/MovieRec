@@ -1,0 +1,14 @@
+<svg width="300" height="450" viewBox="0 0 300 450" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="450" fill="#2C3E50"/>
+  <circle cx="150" cy="180" r="50" stroke="#ECF0F1" stroke-width="4"/>
+  <circle cx="150" cy="180" r="15" fill="#ECF0F1"/>
+  <circle cx="150" cy="145" r="5" fill="#ECF0F1"/>
+  <circle cx="185" cy="180" r="5" fill="#ECF0F1"/>
+  <circle cx="150" cy="215" r="5" fill="#ECF0F1"/>
+  <circle cx="115" cy="180" r="5" fill="#ECF0F1"/>
+  <rect x="100" y="250" width="100" height="10" rx="5" fill="#34495E"/>
+  <rect x="110" y="270" width="80" height="8" rx="4" fill="#34495E"/>
+  <text x="50%" y="320" font-family="'Microsoft YaHei', Arial, sans-serif" font-size="24" fill="#ECF0F1" text-anchor="middle" font-weight="bold">精彩影片</text>
+  <text x="50%" y="350" font-family="'Microsoft YaHei', Arial, sans-serif" font-size="14" fill="#BDC3C7" text-anchor="middle">Movie Collection</text>
+  <path d="M0 440L300 440" stroke="#E74C3C" stroke-width="10"/>
+</svg>

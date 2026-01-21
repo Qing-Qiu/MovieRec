@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class MovieService {
@@ -54,5 +55,19 @@ public class MovieService {
 
     public ArrayList<String> findMovieByNickname2(String nickname) {
         return movieMapper.findMovieByNickname2(nickname);
+    }
+
+    public ArrayList<Movie> findMoviesByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return movieMapper.findMoviesByIds(ids);
+    }
+
+    public List<String> findMovieIdsBySequences(List<String> sequences) {
+        if (sequences == null || sequences.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return movieMapper.findMovieIdsBySequences(sequences);
     }
 }

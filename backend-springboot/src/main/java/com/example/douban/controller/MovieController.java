@@ -2,90 +2,111 @@ package com.example.douban.controller;
 
 import com.example.douban.pojo.Movie;
 import com.example.douban.service.MovieService;
-import jakarta.annotation.Resource;
-import org.apache.mahout.cf.taste.impl.model.file.FileDataModel;
-import org.apache.mahout.cf.taste.impl.recommender.GenericItemBasedRecommender;
-import org.apache.mahout.cf.taste.impl.similarity.PearsonCorrelationSimilarity;
-import org.apache.mahout.cf.taste.model.DataModel;
+import com.example.douban.service.RecommendationService;
 import org.apache.mahout.cf.taste.recommender.RecommendedItem;
-import org.apache.mahout.cf.taste.recommender.Recommender;
-import org.apache.mahout.cf.taste.similarity.ItemSimilarity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 @RestController
 @CrossOrigin(origins = "http://localhost:8081")
 @RequestMapping(value = "/movie")
 public class MovieController {
-    @Resource
-    MovieService movieService;
+
+    private final MovieService movieService;
+    private final RecommendationService recommendationService;
+
+    @Autowired
+    public MovieController(MovieService movieService, RecommendationService recommendationService) {
+        this.movieService = movieService;
+        this.recommendationService = recommendationService;
+    }
 
     @PostMapping("/recommend")
     public ResponseEntity<ArrayList<Movie>> handleOpenPage(@RequestBody Map<String, String> userData) {
         try {
             String nickname = userData.get("nickname");
-            String userID = movieService.findUserIdByNickname(nickname);
-            ArrayList<Movie> movies = new ArrayList<>();
-            ArrayList<Movie> movies1 = new ArrayList<>();
-            if (userID != null) {
-                File modelFile = new File("src/main/resources/static/ratInfo2.txt");
-                DataModel model = new FileDataModel(modelFile);
-                ItemSimilarity similarity = new PearsonCorrelationSimilarity(model);
-                Recommender recommender = new GenericItemBasedRecommender(model, similarity);
-                List<RecommendedItem> recommendedItemList = recommender.recommend(Long.parseLong(userID),
-                        16);
-                for (RecommendedItem recommendedItem : recommendedItemList) {
-                    String itemID = String.valueOf(recommendedItem.getItemID());
-                    String movieID = movieService.findMovieIdById(itemID);
-                    if (movieID == null) continue;
-                    Movie movie = movieService.findMovieById(movieID);
-                    if (movie == null) continue;
-                    movies.add(movie);
+            String userId = movieService.findUserIdByNickname(nickname);
+            
+            ArrayList<Movie> finalMovies = new ArrayList<>();
+            ArrayList<Movie> recommendedMovies = new ArrayList<>();
+
+            // 1. Get Recommendations if User Exists
+            if (userId != null) {
+                try {
+                    long uid = Long.parseLong(userId);
+                    List<RecommendedItem> items = recommendationService.recommend(uid, 16);
+                    
+                    if (!items.isEmpty()) {
+                        // Extract Item IDs (Sequence IDs)
+                        List<String> sequenceIds = items.stream()
+                                .map(item -> String.valueOf(item.getItemID()))
+                                .collect(Collectors.toList());
+
+                        // Batch convert Sequence IDs to Movie IDs (UUIDs)
+                        List<String> movieIds = movieService.findMovieIdsBySequences(sequenceIds);
+
+                        // Batch fetch Movies
+                        List<Movie> fetchedMovies = movieService.findMoviesByIds(movieIds);
+                        
+                        // Add found movies to candidates
+                        if (fetchedMovies != null) {
+                            recommendedMovies.addAll(fetchedMovies);
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid User ID format: " + userId);
                 }
-                if (movies.size() <= 4) {
-                    movies1 = movies;
-                } else {
-                    ArrayList<Integer> list = new ArrayList<>();
-                    for (int i = 0; i < movies.size(); i++)
-                        list.add(i);
-                    Random random = new Random();
-                    for (int i = 1; i <= 4; i++) {
-                        int index = random.nextInt(list.size());
-                        movies1.add(movies.get(list.get(index)));
-                        list.remove(index);
+            }
+
+            // 2. Select up to 4 movies from recommendations
+            if (recommendedMovies.size() <= 4) {
+                finalMovies.addAll(recommendedMovies);
+            } else {
+                Collections.shuffle(recommendedMovies);
+                finalMovies.addAll(recommendedMovies.subList(0, 4));
+            }
+
+            // 3. Fill the rest with random movies (Logic preserved/cleaned)
+            int currentSize = finalMovies.size();
+            int totalNeeded = 8;
+            int needed = totalNeeded - currentSize;
+            
+            if (needed > 0) {
+                int totalParamMovies = movieService.countMovieByKeywords("");
+                int top60PercentCount = (int) (totalParamMovies * 0.6);
+                
+                for (int i = 0; i < needed; i++) {
+                    int percent = ThreadLocalRandom.current().nextInt(100) + 1;
+                    int offset;
+                    
+                    // 5% chance -> Top 60% popular (Low offset)
+                    // 95% chance -> Bottom 40% popular (High offset)
+                    if (percent > 95) {
+                         offset = ThreadLocalRandom.current().nextInt(top60PercentCount);
+                    } else {
+                         offset = top60PercentCount + ThreadLocalRandom.current().nextInt(totalParamMovies - top60PercentCount);
+                    }
+                    
+                    Movie randomMovie = movieService.findRandomMovie(String.valueOf(offset));
+                    if (randomMovie != null) {
+                        finalMovies.add(randomMovie);
                     }
                 }
             }
-            movies = movies1;
-            int len = movies.size();
-            int cnt = movieService.countMovieByKeywords("");
-            for (int i = 1; i <= 8 - len; i++) {
-                Random random = new Random();
-                int percent = random.nextInt(100) + 1;
-                int offset;
-                if (percent > 95) {
-                    offset = random.nextInt((int) (cnt * 0.6));
-                } else {
-                    offset = (int) (cnt * 0.6) + random.nextInt(cnt - (int) (cnt * 0.6));
-                }
-                Movie movie = movieService.findRandomMovie(String.valueOf(offset));
-                movies.add(movie);
-            }
-            Random random = new Random();
-            for (int i = 7; i >= 0; i--) {
-                int pos = random.nextInt(8);
-                Movie tmp = movies.get(i);
-                movies.set(i, movies.get(pos));
-                movies.set(pos, tmp);
-            }
-            return ResponseEntity.ok(movies);
+
+            // 4. Shuffle final result
+            Collections.shuffle(finalMovies);
+
+            return ResponseEntity.ok(finalMovies);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.ok(new ArrayList<>());
         }
-        return ResponseEntity.ok(null);
     }
 
     @PostMapping("/detail")
@@ -95,8 +116,8 @@ public class MovieController {
             return ResponseEntity.ok(movie);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.ok(null);
         }
-        return ResponseEntity.ok(null);
     }
 
     @PostMapping("/search")
@@ -106,8 +127,8 @@ public class MovieController {
             return ResponseEntity.ok(movies);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.ok(null);
         }
-        return ResponseEntity.ok(null);
     }
 
     @PostMapping("/count2")
@@ -117,8 +138,8 @@ public class MovieController {
             return ResponseEntity.ok(cnt);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.ok(null);
         }
-        return ResponseEntity.ok(null);
     }
 
     @PostMapping("/classify")
@@ -129,8 +150,8 @@ public class MovieController {
             return ResponseEntity.ok(movies);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.ok(null);
         }
-        return ResponseEntity.ok(null);
     }
 
     @PostMapping("/count")
@@ -141,7 +162,7 @@ public class MovieController {
             return ResponseEntity.ok(cnt);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.ok(null);
         }
-        return ResponseEntity.ok(null);
     }
 }
