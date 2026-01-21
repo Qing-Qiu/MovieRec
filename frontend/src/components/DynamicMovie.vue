@@ -4,7 +4,7 @@
     <a-card class="movie-hero-card" :bordered="false">
       <div class="hero-content">
         <div class="poster-wrapper">
-          <img :src="'http://localhost:8080/image?url=' + this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer" class="movie-poster"/>
+          <img :src="'http://localhost:8080/image?url=' + this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer" class="movie-poster" @error="handleImageError"/>
         </div>
         <div class="info-wrapper">
           <a-typography-title :level="1" class="movie-title">{{ this.movie_content.name }}</a-typography-title>
@@ -58,7 +58,7 @@
             @click="watchPersonDetail(item.personID)"
         >
           <div class="cast-image-wrapper">
-             <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer"/>
+             <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
           </div>
           <a-card-meta :title="item.name">
              <template #description>
@@ -124,6 +124,7 @@
 <script>
 import axios from "axios";
 import router from "@/router/router";
+import defaultPoster from '@/assets/default_movie_poster.svg';
 
 export default {
   data() {
@@ -147,12 +148,19 @@ export default {
       submitting: false,
     }
   },
+
   beforeMount() {
     this.fetchData();
     this.fetchData1();
     this.fetchData2();
   },
   methods: {
+    handleImageError(e) {
+      const target = e.target;
+      if (target.src !== defaultPoster) {
+        target.src = defaultPoster;
+      }
+    },
     onChange1() {
       this.offset1 = (this.current1 - 1) * 4;
       this.fetchData1();

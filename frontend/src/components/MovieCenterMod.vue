@@ -110,6 +110,8 @@
 import { defineComponent, h } from 'vue';
 import SkeletonCard from './SkeletonCard.vue';
 
+import defaultPoster from '@/assets/default_movie_poster.svg';
+
 // Helper component to handle image errors simply
 const imgWrapper = defineComponent({
   props: ['src', 'alt'],
@@ -119,7 +121,12 @@ const imgWrapper = defineComponent({
       alt: props.alt,
       referrerpolicy: "no-referrer",
       style: { width: '100%', height: '100%', objectFit: 'cover' },
-      onError: (e) => { e.target.src = 'https://via.placeholder.com/300x450?text=No+Image'; }
+      onError: (e) => {
+        const target = e.target;
+        if (target.src !== defaultPoster) {
+          target.src = defaultPoster;
+        }
+      }
     })
   }
 })
