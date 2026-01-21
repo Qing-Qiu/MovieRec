@@ -1,254 +1,484 @@
 <template>
-  <div class="model-container">
-    <div class="model-content">
-      <!-- Header Section -->
-      <div class="header-section">
-        <h1 class="page-title">
-          <RobotOutlined class="title-icon" /> 大模型助手
-        </h1>
-        <p class="page-subtitle">智能问答，探索电影与影人的奥秘</p>
+  <div class="chat-layout">
+    <!-- Sidebar (History) -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <a-button type="primary" block @click="startNewChat" class="new-chat-btn">
+          <PlusOutlined /> 新对话
+        </a-button>
+      </div>
+      <div class="history-list">
+        <div 
+          v-for="(session, index) in sessions" 
+          :key="index"
+          class="history-item"
+          :class="{ active: currentSessionId === session.id }"
+          @click="switchSession(session.id)"
+        >
+          <MessageOutlined class="history-icon" />
+          <span class="history-title">{{ session.title }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="main-area">
+      <!-- Header / Mode Switcher -->
+      <div class="chat-header">
+        <div class="header-content">
+          <span class="model-name">
+            <RobotOutlined class="model-icon" /> Qwen-Chat
+          </span>
+          <a-radio-group v-model:value="currentMode" button-style="solid" size="small">
+            <a-radio-button :value="1">通用对话</a-radio-button>
+            <a-radio-button :value="2">电影知识库</a-radio-button>
+          </a-radio-group>
+        </div>
       </div>
 
-      <!-- Search Section -->
-      <a-row justify="center" class="search-section">
-        <a-col :xs="24" :sm="20" :md="18" :lg="14">
-          <div class="search-wrapper">
-             <a-input-search
-                v-model:value="formState.search"
-                placeholder="请输入您的问题..."
-                enter-button="提问"
-                size="large"
-                @search="submitForm"
-                class="custom-search"
-                :loading="loading"
-              >
-                <template #prefix>
-                   <MessageOutlined class="search-icon" />
-                </template>
-              </a-input-search>
-              
-              <div class="radio-group-wrapper">
-                 <a-radio-group v-model:value="value" button-style="solid">
-                  <a-radio-button :value="1">通用对话</a-radio-button>
-                  <a-radio-button :value="2">影片查询</a-radio-button>
-                  <a-radio-button :value="3">影人查询</a-radio-button>
-                </a-radio-group>
-              </div>
+      <!-- Messages Area -->
+      <div class="messages-container" ref="messagesContainer">
+        <div v-if="messages.length === 0" class="empty-state">
+           <div class="empty-icon-wrapper">
+             <RocketOutlined />
+           </div>
+           <h3>开始一次新的探索</h3>
+           <p>您可以问我任何问题，或者切换到“电影知识库”模式查询影片详情。</p>
+        </div>
+
+        <div v-for="(msg, index) in messages" :key="index" class="message-row" :class="msg.role">
+          <div class="avatar">
+            <UserOutlined v-if="msg.role === 'user'" />
+            <RobotOutlined v-else />
           </div>
-        </a-col>
-      </a-row>
+          <div class="bubble">
+            <!-- Use v-html for markdown rendering -->
+            <div class="bubble-content markdown-body" v-html="renderMessage(msg.content)"></div>
+          </div>
+        </div>
 
-      <!-- Result Section -->
-       <a-row justify="center">
-          <a-col :xs="24" :sm="22" :md="20" :lg="16">
-            <a-card class="result-card" :bordered="false" v-if="result || loading">
-               <template v-if="loading">
-                  <a-skeleton active />
-               </template>
-               <template v-else-if="result">
-                  <div class="result-header">
-                     <span class="user-query">Q: {{ lastMsg }}</span>
-                  </div>
-                  <a-divider style="margin: 12px 0"/>
-                  <div class="result-content">
-                    <div class="ai-avatar">
-                      <RobotOutlined />
-                    </div>
-                    <div class="ai-text">
-                       {{ result }}
-                    </div>
-                  </div>
-               </template>
-            </a-card>
-            
-            <div v-else class="initial-state">
-              <BulbOutlined class="bg-icon" />
-              <p>选择模式，输入问题，开始智能对话</p>
-            </div>
-          </a-col>
-       </a-row>
+        <div v-if="loading" class="message-row assistant">
+          <div class="avatar"><RobotOutlined /></div>
+          <div class="bubble loading-bubble">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+        </div>
+      </div>
 
+      <!-- Input Area -->
+      <div class="input-area">
+        <div class="input-wrapper">
+          <a-textarea
+            v-model:value="inputContent"
+            placeholder="输入您的问题... (Shift + Enter 换行)"
+            :auto-size="{ minRows: 1, maxRows: 5 }"
+            @pressEnter="handleEnter"
+            class="chat-input"
+          />
+          <a-button type="primary" shape="circle" @click="sendMessage" :loading="loading" class="send-btn">
+            <template #icon><SendOutlined /></template>
+          </a-button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { ref, reactive, nextTick } from "vue";
 import axios from "axios";
 import { 
-  RobotOutlined, 
+  PlusOutlined, 
   MessageOutlined, 
-  BulbOutlined 
+  RobotOutlined, 
+  UserOutlined, 
+  SendOutlined,
+  RocketOutlined
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 
-const formState = reactive({
-  search: '',
+// Markdown & Katex
+import MarkdownIt from 'markdown-it';
+import mk from 'markdown-it-katex';
+import 'katex/dist/katex.min.css';
+
+// Initialize Markdown parser
+const md = new MarkdownIt({
+  html: false, // disable HTML tags for security
+  linkify: true,
+  typographer: true
 });
-const value = ref(1);
-const result = ref(null);
+md.use(mk);
+
+const renderMessage = (content) => {
+  if (!content) return '';
+  return md.render(content);
+};
+
+// --- State ---
+const currentMode = ref(1); // 1: General, 2: Knowledge Base
+const inputContent = ref("");
 const loading = ref(false);
-const lastMsg = ref('');
+const messagesContainer = ref(null);
 
-const submitForm = async () => {
-  if (!formState.search || /^\s*$/.test(formState.search)) {
-    message.warning("请输入有效内容");
-    return;
-  }
+// Mock Sessions
+const currentSessionId = ref(1);
+const sessions = reactive([
+  { id: 1, title: '新对话' }
+]);
 
+const messages = ref([
+  // Example initial structure
+  // { role: 'assistant', content: '您好！我是您的电影助手，有什么可以帮您？' }
+]);
+
+// --- Actions ---
+
+const startNewChat = () => {
+  messages.value = [];
+  inputContent.value = "";
+  // In a real app, create a new session ID
+  message.success("已开启新对话");
+};
+
+const switchSession = (id) => {
+  currentSessionId.value = id;
+  // TODO: Load history for this session
+};
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    }
+  });
+};
+
+const handleEnter = (e) => {
+  if (e.shiftKey) return;
+  e.preventDefault();
+  sendMessage();
+};
+
+const sendMessage = async () => {
+  const content = inputContent.value.trim();
+  if (!content) return;
+
+  // 1. Add User Message
+  messages.value.push({ role: 'user', content });
+  inputContent.value = "";
+  scrollToBottom();
   loading.value = true;
-  result.value = null; // Clear previous result to show skeleton
-  
-  let msgToSend = formState.search;
-  
-  // Format message based on type
-  if (value.value === 2) {
-    msgToSend = "影片《" + msgToSend + "》";
-  } else if (value.value === 3) {
-    msgToSend = "影人 " + msgToSend;
-  }
-  
-  lastMsg.value = msgToSend; // Save for display
 
   try {
-    const response = await axios.post('http://localhost:8080/api/chat', { msg: msgToSend });
+    // 2. Prepare Payload
+    const payload = {
+      mode: currentMode.value,
+      messages: messages.value.map(m => ({ role: m.role, content: m.content })) 
+    };
+    
+    const response = await axios.post('http://localhost:8080/api/chat', payload);
+    
     if (response.data && response.data.data) {
-       result.value = response.data.data;
+      messages.value.push({ role: 'assistant', content: response.data.data });
     } else {
-       result.value = "未获取到回答，请稍后再试。";
+      messages.value.push({ role: 'assistant', content: "抱歉，由于服务器繁忙，我没有收到回复。" });
     }
   } catch (error) {
     console.error(error);
-    result.value = "请求出错，请检查网络或服务器状态。";
-    message.error("请求失败");
+    messages.value.push({ role: 'assistant', content: "网络请求出错，请检查连接。" });
   } finally {
     loading.value = false;
+    scrollToBottom();
   }
-}
+};
 </script>
 
 <style scoped>
-.model-container {
-  min-height: calc(100vh - 64px);
-  padding: 40px 24px;
-  background-color: #f5f7fa; /* Slightly different bg for distinction */
+.chat-layout {
+  display: flex;
+  height: 85vh; /* Reduced height to avoid page scroll */
+  background-color: #f5f7fa;
+  overflow: hidden;
 }
 
-.model-content {
-  max-width: 1200px;
-  margin: 0 auto;
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  background-color: white;
+  border-right: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
 }
 
-.header-section {
-  text-align: center;
-  margin-bottom: 40px;
+.sidebar-header {
+  padding: 20px;
 }
 
-.page-title {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f1f1f;
-  margin-bottom: 8px;
+.new-chat-btn {
+  border-radius: 8px;
+  height: 40px;
+  font-size: 15px;
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s;
+  color: #333;
+}
+
+.history-item:hover {
+  background-color: #f5f5f5;
+}
+
+.history-item.active {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+
+.history-icon {
+  margin-right: 12px;
+  font-size: 16px;
+}
+
+.history-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+
+/* Main Area */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.chat-header {
+  height: 60px;
+  border-bottom: 1px solid #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  background: white;
+  z-index: 10;
 }
 
-.title-icon {
-  color: #722ed1; /* Purple for AI/Mystery vibe */
-}
-
-.page-subtitle {
-  color: #8c8c8c;
-  font-size: 16px;
-}
-
-.search-section {
-  margin-bottom: 40px;
-}
-
-.search-wrapper {
+.header-content {
   display: flex;
-  flex-direction: column;
   gap: 20px;
   align-items: center;
 }
 
-.radio-group-wrapper {
-  margin-top: 10px;
-}
-
-/* Custom Search Input Styles */
-:deep(.custom-search .ant-input) {
-  border-radius: 24px 0 0 24px !important;
-  padding-left: 20px;
-}
-
-:deep(.custom-search .ant-btn) {
-  border-radius: 0 24px 24px 0 !important;
-  padding: 0 40px;
-  font-size: 16px;
-  background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%); /* Purple gradient */
-  border: none;
-  box-shadow: 0 4px 10px rgba(114, 46, 209, 0.3);
-}
-
-:deep(.custom-search .ant-btn:hover) {
-  background: linear-gradient(135deg, #9254de 0%, #d3adf7 100%);
-  box-shadow: 0 6px 16px rgba(114, 46, 209, 0.4);
-}
-
-.result-card {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
-  padding: 24px;
-  min-height: 200px;
-}
-
-.result-header {
+.model-name {
   font-weight: 600;
-  color: #555;
-  font-size: 16px;
-}
-
-.result-content {
+  color: #444;
   display: flex;
-  gap: 20px;
-  align-items: flex-start;
+  align-items: center;
+  gap: 8px;
 }
 
-.ai-avatar {
-  font-size: 32px;
+.model-icon {
   color: #722ed1;
-  background: #f9f0ff;
-  width: 50px;
-  height: 50px;
+}
+
+/* Messages */
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.message-row {
+  display: flex;
+  gap: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 20px;
+}
+
+.message-row.user {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
+  background: #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  font-size: 18px;
+  color: #666;
+  margin-top: 4px; /* Align with top of bubble */
 }
 
-.ai-text {
-  flex: 1;
-  font-size: 16px;
-  line-height: 1.8;
-  color: #333;
-  white-space: pre-wrap; /* Preserve formatting */
+.message-row.assistant .avatar {
+  background: #f9f0ff;
+  color: #722ed1;
 }
 
-.initial-state {
+.message-row.user .avatar {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.bubble {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 80%;
+  word-wrap: break-word;
+  text-align: left; /* Explicitly set left alignment */
+}
+
+.message-row.assistant .bubble {
+  background: white;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.message-row.user .bubble {
+  background: #1890ff;
+  color: white;
+}
+
+/* Make sure markdown content inside also follows rules */
+.bubble-content {
+  overflow-wrap: break-word;
+}
+
+/* Markdown styling overrides for bubbles */
+:deep(.markdown-body) {
+  font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;
+}
+:deep(.markdown-body p) {
+  margin-bottom: 0.5em;
+}
+:deep(.markdown-body p:last-child) {
+  margin-bottom: 0;
+}
+:deep(.markdown-body pre) {
+  background-color: #f6f8fa;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+/* Ensure white text for code blocks in user bubble if needed, 
+   but usually user sends plain text. If user sends code, it might look odd on blue.
+   Let's keep user bubble simple or adapt only assistant. */
+.message-row.user :deep(.markdown-body pre) {
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+}
+
+/* Empty State */
+.empty-state {
+  margin: auto;
   text-align: center;
-  padding: 80px 0;
-  color: #ccc;
+  color: #999;
 }
 
-.bg-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  color: #efdbff; /* Light purple */
+.empty-icon-wrapper {
+  font-size: 48px;
+  margin-bottom: 20px;
+  color: #e0e0e0;
+}
+
+.empty-state h3 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+/* Input Area */
+.input-area {
+  background: white;
+  padding: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.input-wrapper {
+  max-width: 800px;
+  margin: 0 auto;
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.chat-input {
+  border-radius: 12px;
+  padding: 10px 15px;
+  resize: none;
+  border-color: #d9d9d9;
+}
+
+.chat-input:hover, .chat-input:focus {
+  border-color: #1890ff;
+  box-shadow: none; 
+}
+
+.send-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+.footer-text {
+  text-align: center;
+  font-size: 12px;
+  color: #ccc;
+  margin-top: 10px;
+}
+
+/* Loading Dots */
+.loading-bubble {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 16px 20px !important;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: #bbb;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .sidebar {
+    display: none; /* Hide sidebar on small screens for now */
+  }
 }
 </style>
