@@ -29,43 +29,68 @@
       </div>
     </a-card>
 
-    <a-card class="section-card" title="影人简介" :bordered="false">
-      <a-typography-paragraph :content=" this.person_content.summary "
-                              :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
-                              class="summary-text"/>
+    <a-card class="section-card summary-card" title="影人简介" :bordered="false">
+      <div class="summary-panel">
+        <div class="summary-rule"></div>
+        <a-typography-paragraph :content="this.person_content.summary || '暂无影人简介。'"
+                                :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
+                                class="summary-text"/>
+      </div>
     </a-card>
 
     <a-card class="section-card" :bordered="false">
       <template #title>
-        <div class="section-title-line">
+        <div class="paged-title-line">
           <span>代表作品</span>
+          <span class="page-center-status" v-if="worksTotalPages > 1">
+            <strong>{{ current1 }}</strong>
+            <span>/ {{ worksTotalPages }}</span>
+          </span>
           <span class="section-count">{{ count1 }} 部</span>
         </div>
       </template>
 
-      <div class="movie-grid" v-if="movie_list.length">
-        <a-card
-            v-for="(item, itemIndex) in movie_list"
-            :key="itemIndex"
-            class="movie-card"
-            hoverable
-            @click="watchMovieDetail(item.movieID)"
+      <div class="paged-stage">
+        <button
+            v-if="worksTotalPages > 1"
+            type="button"
+            class="side-page-button side-page-left"
+            :disabled="current1 <= 1"
+            aria-label="上一页"
+            @click="goWorkPage(current1 - 1)"
         >
-          <div class="movie-image-wrapper">
-             <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
-          </div>
-          <a-card-meta :title="item.name">
-             <template #description>
-               <span class="movie-genre">{{ formatGenre(item.genre) }}</span>
-             </template>
-          </a-card-meta>
-        </a-card>
-        <div v-for="i in (4 - (movie_list.length % 4)) % 4" :key="'placeholder-'+i" class="movie-card-placeholder"></div>
-      </div>
-      <a-empty v-else description="暂无代表作品" class="empty-state"/>
-      <div class="pagination-wrapper" v-if="count1 > 4">
-        <a-pagination show-less-items v-model:current="current1" show-quick-jumper :total="this.count1"
-                      :default-page-size="4" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange1"/>
+          ‹
+        </button>
+
+        <div class="work-grid" v-if="movie_list.length">
+          <button
+              v-for="(item, itemIndex) in movie_list"
+              :key="itemIndex"
+              type="button"
+              class="work-tile"
+              @click="watchMovieDetail(item.movieID)"
+          >
+            <span class="work-poster">
+               <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
+            </span>
+            <span class="work-meta">
+              <span class="work-genre">{{ formatGenre(item.genre) || '暂无类型' }}</span>
+              <span class="work-title">{{ item.name }}</span>
+            </span>
+          </button>
+        </div>
+        <a-empty v-else description="暂无代表作品" class="empty-state"/>
+
+        <button
+            v-if="worksTotalPages > 1"
+            type="button"
+            class="side-page-button side-page-right"
+            :disabled="current1 >= worksTotalPages"
+            aria-label="下一页"
+            @click="goWorkPage(current1 + 1)"
+        >
+          ›
+        </button>
       </div>
     </a-card>
   </div>
@@ -93,6 +118,11 @@ export default {
   beforeMount() {
     this.fetchData();
   },
+  computed: {
+    worksTotalPages() {
+      return Math.max(1, Math.ceil((Number(this.count1) || 0) / this.limit1));
+    },
+  },
   methods: {
     handleImageError(e) {
       const target = e.target;
@@ -100,8 +130,16 @@ export default {
         target.src = defaultPoster;
       }
     },
-    onChange1() {
-      this.offset1 = (this.current1 - 1) * 4;
+    onChange1(page = this.current1) {
+      this.goWorkPage(page);
+    },
+    goWorkPage(page) {
+      const nextPage = Math.min(Math.max(page, 1), this.worksTotalPages);
+      if (nextPage === this.current1) {
+        return;
+      }
+      this.current1 = nextPage;
+      this.offset1 = (this.current1 - 1) * this.limit1;
       this.fetchData();
     },
 
@@ -284,74 +322,119 @@ const ellipsis = ref(true);
   background: var(--movie-line);
 }
 
+.summary-card :deep(.ant-card-body) {
+  padding-top: 22px;
+}
+
+.summary-panel {
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  gap: 18px;
+  padding: 20px 22px;
+  background:
+      linear-gradient(135deg, rgba(21, 127, 131, 0.07), rgba(181, 138, 47, 0.06)),
+      var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+}
+
+.summary-rule {
+  width: 4px;
+  min-height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--movie-teal), var(--movie-gold));
+}
+
 .summary-text {
   font-size: 15px;
-  line-height: 1.8;
+  line-height: 1.9;
   color: var(--movie-ink);
   margin-bottom: 0;
+  letter-spacing: 0;
 }
 
-.movie-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.movie-card {
-  border-radius: var(--movie-radius);
-  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
-  border: 1px solid var(--movie-line);
-  overflow: hidden;
-}
-
-.movie-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(196, 59, 69, 0.32);
-  box-shadow: var(--movie-shadow-md);
-}
-
-:deep(.movie-card .ant-card-body) {
-  min-height: 82px;
-  padding: 14px 16px 16px;
-}
-
-:deep(.movie-card .ant-card-meta-title) {
-  color: var(--movie-ink);
+:deep(.summary-text .ant-typography-expand) {
+  color: var(--movie-teal);
   font-weight: 650;
-  margin-bottom: 6px !important;
-  white-space: normal;
-  line-height: 1.35;
 }
 
-.movie-image-wrapper {
-  aspect-ratio: 2 / 3;
-  overflow: hidden;
-  background: #e8edf2;
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.work-tile {
+  width: 100%;
+  min-height: 142px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 16px;
+  padding: 12px;
+  text-align: left;
+  color: inherit;
+  background: linear-gradient(180deg, #fff, var(--movie-surface-soft));
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.05);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
-.movie-image-wrapper img {
+.work-tile:hover,
+.work-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(196, 59, 69, 0.32);
+  background: #fff;
+  box-shadow: var(--movie-shadow-sm);
+  outline: none;
+}
+
+.work-poster {
+  width: 80px;
+  height: 116px;
+  flex: 0 0 80px;
+  overflow: hidden;
+  border-radius: var(--movie-radius);
+  background: #e8edf2;
+  box-shadow: 0 8px 18px rgba(18, 24, 33, 0.12);
+}
+
+.work-poster img {
   width: 100%;
   height: 100%;
+  display: block;
   object-fit: cover;
 }
 
-.movie-genre {
+.work-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.work-title {
+  color: var(--movie-ink);
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.work-genre {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 9px;
+  color: var(--movie-accent);
+  background: rgba(196, 59, 69, 0.08);
+  border: 1px solid rgba(196, 59, 69, 0.16);
+  border-radius: var(--movie-radius);
   font-size: 12px;
-  color: var(--movie-muted);
+  font-weight: 650;
   line-height: 1.45;
-}
-
-.movie-card-placeholder {
-  display: none;
-}
-
-.pagination-wrapper {
-  margin-top: 32px;
-  text-align: center;
-  padding-bottom: 12px;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .section-title-line {
@@ -373,6 +456,91 @@ const ellipsis = ref(true);
 
 .empty-state {
   padding: 40px 0 28px;
+}
+
+:deep(.section-card .ant-card-head-title) {
+  width: 100%;
+}
+
+.paged-title-line {
+  position: relative;
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-center-status {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--movie-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.page-center-status strong {
+  color: var(--movie-accent);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.paged-stage {
+  position: relative;
+  min-height: 142px;
+  padding: 0 52px;
+}
+
+.side-page-button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 30px;
+  height: auto;
+  min-height: 142px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(101, 112, 124, 0.72);
+  background: rgba(248, 250, 252, 0.72);
+  border: 1px solid rgba(223, 229, 235, 0.82);
+  border-radius: var(--movie-radius);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: none;
+  transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.side-page-left {
+  left: 0;
+}
+
+.side-page-right {
+  right: 0;
+}
+
+.side-page-button:hover,
+.side-page-button:focus-visible {
+  color: var(--movie-accent);
+  border-color: rgba(196, 59, 69, 0.34);
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.07);
+  outline: none;
+}
+
+.side-page-button:disabled {
+  color: rgba(184, 192, 200, 0.62);
+  background: rgba(248, 250, 252, 0.5);
+  border-color: rgba(223, 229, 235, 0.62);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
@@ -406,14 +574,60 @@ const ellipsis = ref(true);
     text-align: center;
   }
 
-  .movie-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .paged-title-line {
+    flex-wrap: wrap;
+  }
+
+  .page-center-status {
+    position: static;
+    width: 100%;
+    justify-content: center;
+    order: 3;
+    transform: none;
+  }
+
+  .paged-stage {
+    padding: 0 42px;
+  }
+
+  .side-page-button {
+    width: 28px;
+  }
+
+  .work-grid {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 480px) {
-  .movie-grid {
+  .work-grid {
     gap: 16px;
+  }
+
+  .paged-stage {
+    padding: 0 38px;
+  }
+
+  .summary-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .summary-rule {
+    width: 42px;
+    min-height: 4px;
+  }
+
+  .work-tile {
+    min-height: 122px;
+    padding: 10px;
+  }
+
+  .work-poster {
+    width: 68px;
+    height: 98px;
+    flex-basis: 68px;
   }
 
   .identity-panel {

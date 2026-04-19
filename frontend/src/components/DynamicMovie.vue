@@ -51,35 +51,68 @@
       </div>
     </a-card>
 
-    <a-card class="section-card" title="剧情简介" :bordered="false">
-      <a-typography-paragraph :content="this.movie_content.summary"
-                              :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
-                              class="summary-text"/>
+    <a-card class="section-card summary-card" title="剧情简介" :bordered="false">
+      <div class="summary-panel">
+        <div class="summary-rule"></div>
+        <a-typography-paragraph :content="this.movie_content.summary || '暂无剧情简介。'"
+                                :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
+                                class="summary-text"/>
+      </div>
     </a-card>
 
-    <a-card class="section-card" title="演职员表" :bordered="false">
-      <div class="cast-grid">
-        <a-card
-            v-for="(item, itemIndex) in person_list"
-            :key="itemIndex"
-            class="cast-card"
-            hoverable
-            @click="watchPersonDetail(item.personID)"
+    <a-card class="section-card paged-section" :bordered="false">
+      <template #title>
+        <div class="paged-title-line">
+          <span>演职员表</span>
+          <span class="page-center-status" v-if="castTotalPages > 1">
+            <strong>{{ current1 }}</strong>
+            <span>/ {{ castTotalPages }}</span>
+          </span>
+          <span class="section-count">共 {{ count1 }} 位</span>
+        </div>
+      </template>
+
+      <div class="paged-stage">
+        <button
+            v-if="castTotalPages > 1"
+            type="button"
+            class="side-page-button side-page-left"
+            :disabled="current1 <= 1"
+            aria-label="上一页"
+            @click="goCastPage(current1 - 1)"
         >
-          <div class="cast-image-wrapper">
-             <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
-          </div>
-          <a-card-meta :title="item.name">
-             <template #description>
-               <span class="cast-role">{{ item.role }}</span>
-             </template>
-          </a-card-meta>
-        </a-card>
-        <div v-for="i in (4 - (person_list.length % 4)) % 4" :key="'placeholder-'+i" class="cast-card-placeholder"></div>
-      </div>
-       <div class="pagination-wrapper" v-if="count1 > 4">
-        <a-pagination show-less-items v-model:current="current1" show-quick-jumper :total="this.count1"
-                      :default-page-size="4" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange1"/>
+          ‹
+        </button>
+
+        <div class="cast-grid" v-if="person_list.length">
+          <button
+              v-for="(item, itemIndex) in person_list"
+              :key="itemIndex"
+              type="button"
+              class="cast-tile"
+              @click="watchPersonDetail(item.personID)"
+          >
+            <span class="cast-photo">
+               <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
+            </span>
+            <span class="cast-meta">
+              <span class="cast-role">{{ item.role || '演职员' }}</span>
+              <span class="cast-name">{{ item.name }}</span>
+            </span>
+          </button>
+        </div>
+        <a-empty v-else description="暂无演职员资料" class="empty-state"/>
+
+        <button
+            v-if="castTotalPages > 1"
+            type="button"
+            class="side-page-button side-page-right"
+            :disabled="current1 >= castTotalPages"
+            aria-label="下一页"
+            @click="goCastPage(current1 + 1)"
+        >
+          ›
+        </button>
       </div>
     </a-card>
 
@@ -138,10 +171,11 @@
           </a-list-item>
         </template>
       </a-list>
-      
-      <div class="pagination-wrapper" v-if="count2 > 8">
-        <a-pagination show-less-items v-model:current="current2" show-quick-jumper :total="this.count2"
-                      :default-page-size="8" :show-size-changer="false" :show-total="total => `共 ${total} 条`" @change="onChange2"/>
+
+      <div class="comment-load-area" ref="commentLoadTrigger" v-if="count2 > 0 || loading">
+        <a-spin v-if="loading || loadingMore" size="small"/>
+        <span v-else-if="hasMoreComments" class="comment-load-hint">下滑加载更多评论</span>
+        <span v-else class="comment-load-hint">已显示全部评论</span>
       </div>
     </a-card>
   </div>
@@ -152,6 +186,7 @@ import axios from "axios";
 import router from "@/router/router";
 import defaultPoster from '@/assets/default_movie_poster.svg';
 import { message } from "ant-design-vue";
+import { markRaw } from "vue";
 
 export default {
   data() {
@@ -170,6 +205,9 @@ export default {
       offset2: 0,
       username: '游客',
       loading: false,
+      loadingMore: false,
+      commentObserver: null,
+      commentObservedTarget: null,
       ellipsis: true,
       new_comment: '',
       submitting: false,
@@ -181,6 +219,25 @@ export default {
     this.fetchData1();
     this.fetchData2();
   },
+  mounted() {
+    this.initCommentObserver();
+  },
+  beforeUnmount() {
+    if (this.commentObserver) {
+      this.commentObserver.disconnect();
+      this.commentObserver = null;
+    }
+    this.commentObservedTarget = null;
+    window.removeEventListener('scroll', this.handleCommentScroll);
+  },
+  computed: {
+    castTotalPages() {
+      return Math.max(1, Math.ceil((Number(this.count1) || 0) / this.limit1));
+    },
+    hasMoreComments() {
+      return this.comment_list.length < (Number(this.count2) || 0);
+    },
+  },
   methods: {
     handleImageError(e) {
       const target = e.target;
@@ -188,13 +245,20 @@ export default {
         target.src = defaultPoster;
       }
     },
-    onChange1() {
-      this.offset1 = (this.current1 - 1) * 4;
+    onChange1(page = this.current1) {
+      this.goCastPage(page);
+    },
+    goCastPage(page) {
+      const nextPage = Math.min(Math.max(page, 1), this.castTotalPages);
+      if (nextPage === this.current1) {
+        return;
+      }
+      this.current1 = nextPage;
+      this.offset1 = (this.current1 - 1) * this.limit1;
       this.fetchData1();
     },
     onChange2() {
-      this.offset2 = (this.current2 - 1) * 8;
-      this.fetchData2();
+      this.loadMoreComments();
     },
     async watchPersonDetail(id) {
       await router.push('/person/' + id);
@@ -242,31 +306,83 @@ export default {
       } catch (error) {
       }
     },
-    async fetchData2() {
-      this.loading = true;
-      try {
-        const response = await axios.post('http://localhost:8080/comment/count',
-            {id: this.movie_id}).then(
-            response => {
-              this.count2 = response.data;
-            },
-            error => {
+    initCommentObserver() {
+      this.$nextTick(() => {
+        const target = this.$refs.commentLoadTrigger;
+        if (!target) {
+          return;
+        }
+        if (this.commentObserver && this.commentObservedTarget === target) {
+          return;
+        }
+        if (this.commentObserver) {
+          this.commentObserver.disconnect();
+          this.commentObserver = null;
+        }
+        window.removeEventListener('scroll', this.handleCommentScroll);
+        this.commentObservedTarget = markRaw(target);
+        if ('IntersectionObserver' in window) {
+          this.commentObserver = markRaw(new IntersectionObserver((entries) => {
+            if (entries[0] && entries[0].isIntersecting) {
+              this.loadMoreComments();
             }
-        )
-      } catch (error) {
+          }, {
+            root: null,
+            rootMargin: '160px',
+            threshold: 0,
+          }));
+          this.commentObserver.observe(target);
+          return;
+        }
+        window.addEventListener('scroll', this.handleCommentScroll, {passive: true});
+        this.handleCommentScroll();
+      });
+    },
+    handleCommentScroll() {
+      const target = this.$refs.commentLoadTrigger;
+      if (!target) {
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      if (rect.top <= window.innerHeight + 160) {
+        this.loadMoreComments();
+      }
+    },
+    async loadMoreComments() {
+      await this.fetchData2({append: true});
+    },
+    async fetchData2({append = false} = {}) {
+      if (append) {
+        if (this.loading || this.loadingMore || !this.hasMoreComments) {
+          return;
+        }
+        this.loadingMore = true;
+      } else {
+        this.loading = true;
+        this.current2 = 1;
+        this.offset2 = 0;
       }
       try {
-        const response = await axios.post('http://localhost:8080/comment/comment',
-            {id: this.movie_id, limit: this.limit2, offset: this.offset2}).then(
-            response => {
-              this.comment_list = response.data;
-            },
-            error => {
-            }
-        )
+        const countResponse = await axios.post('http://localhost:8080/comment/count',
+            {id: this.movie_id});
+        this.count2 = Number(countResponse.data) || 0;
+
+        const nextOffset = append ? this.comment_list.length : 0;
+        const listResponse = await axios.post('http://localhost:8080/comment/comment',
+            {id: this.movie_id, limit: this.limit2, offset: nextOffset});
+        const nextComments = Array.isArray(listResponse.data) ? listResponse.data : [];
+
+        this.comment_list = append ? [...this.comment_list, ...nextComments] : nextComments;
+        this.offset2 = this.comment_list.length;
+        this.current2 = Math.max(1, Math.ceil(this.offset2 / this.limit2));
       } catch (error) {
+      } finally {
+        this.loading = false;
+        this.loadingMore = false;
+        if (this.count2 > 0) {
+          this.initCommentObserver();
+        }
       }
-      this.loading = false;
     },
 
     async submitComment() {
@@ -496,68 +612,208 @@ import UserImage from '@/assets/meow.jpg';
   color: var(--movie-gold);
 }
 
+.summary-card :deep(.ant-card-body) {
+  padding-top: 22px;
+}
+
+.summary-panel {
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  gap: 18px;
+  padding: 20px 22px;
+  background:
+      linear-gradient(135deg, rgba(196, 59, 69, 0.06), rgba(21, 127, 131, 0.05)),
+      var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+}
+
+.summary-rule {
+  width: 4px;
+  min-height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--movie-accent), var(--movie-gold));
+}
+
 .summary-text {
   font-size: 15px;
-  line-height: 1.8;
+  line-height: 1.9;
   color: var(--movie-ink);
   margin-bottom: 0;
+  letter-spacing: 0;
+}
+
+:deep(.summary-text .ant-typography-expand) {
+  color: var(--movie-accent);
+  font-weight: 650;
 }
 
 .cast-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
+  gap: 16px;
 }
 
-.cast-card {
-  border-radius: var(--movie-radius);
-  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
-  border: 1px solid var(--movie-line);
-  overflow: hidden;
-}
-
-.cast-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(196, 59, 69, 0.32);
-  box-shadow: var(--movie-shadow-md);
-}
-
-:deep(.cast-card .ant-card-body) {
-  min-height: 82px;
-  padding: 14px 16px 16px;
-}
-
-:deep(.cast-card .ant-card-meta-title) {
-  color: var(--movie-ink);
-  font-weight: 650;
-  margin-bottom: 6px !important;
-  white-space: normal;
-  line-height: 1.35;
-}
-
-.cast-image-wrapper {
-  aspect-ratio: 2 / 3;
-  overflow: hidden;
-  background: #e8edf2;
+.cast-tile {
+  width: 100%;
+  min-height: 124px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 14px;
+  padding: 12px;
+  text-align: left;
+  color: inherit;
+  background: linear-gradient(180deg, #fff, var(--movie-surface-soft));
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.05);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
-.cast-image-wrapper img {
+.cast-tile:hover,
+.cast-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(196, 59, 69, 0.32);
+  background: #fff;
+  box-shadow: var(--movie-shadow-sm);
+  outline: none;
+}
+
+.cast-photo {
+  width: 74px;
+  height: 100px;
+  flex: 0 0 74px;
+  overflow: hidden;
+  border-radius: var(--movie-radius);
+  background: #e8edf2;
+  box-shadow: 0 8px 18px rgba(18, 24, 33, 0.12);
+}
+
+.cast-photo img {
   width: 100%;
   height: 100%;
+  display: block;
   object-fit: cover;
 }
 
-.cast-role {
-  font-size: 12px;
-  color: var(--movie-muted);
-  line-height: 1.45;
+.cast-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.cast-card-placeholder {
-  display: none;
+.cast-name {
+  color: var(--movie-ink);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.cast-role {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 9px;
+  color: var(--movie-teal);
+  background: rgba(21, 127, 131, 0.08);
+  border: 1px solid rgba(21, 127, 131, 0.16);
+  border-radius: var(--movie-radius);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.empty-state {
+  padding: 36px 0 24px;
+}
+
+:deep(.paged-section .ant-card-head-title) {
+  width: 100%;
+}
+
+.paged-title-line {
+  position: relative;
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-center-status {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--movie-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.page-center-status strong {
+  color: var(--movie-accent);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.paged-stage {
+  position: relative;
+  min-height: 124px;
+  padding: 0 52px;
+}
+
+.side-page-button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 30px;
+  height: auto;
+  min-height: 124px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(101, 112, 124, 0.72);
+  background: rgba(248, 250, 252, 0.72);
+  border: 1px solid rgba(223, 229, 235, 0.82);
+  border-radius: var(--movie-radius);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: none;
+  transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.side-page-left {
+  left: 0;
+}
+
+.side-page-right {
+  right: 0;
+}
+
+.side-page-button:hover,
+.side-page-button:focus-visible {
+  color: var(--movie-accent);
+  border-color: rgba(196, 59, 69, 0.34);
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.07);
+  outline: none;
+}
+
+.side-page-button:disabled {
+  color: rgba(184, 192, 200, 0.62);
+  background: rgba(248, 250, 252, 0.5);
+  border-color: rgba(223, 229, 235, 0.62);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .comments-card :deep(.ant-card-body) {
@@ -716,10 +972,22 @@ import UserImage from '@/assets/meow.jpg';
   word-break: break-word;
 }
 
-.pagination-wrapper {
-  margin-top: 32px;
-  text-align: center;
-  padding-bottom: 12px;
+.comment-load-area {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  color: var(--movie-muted);
+  font-size: 13px;
+}
+
+.comment-load-hint {
+  padding: 5px 12px;
+  color: var(--movie-muted);
+  background: var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
 }
 
 @media (max-width: 768px) {
@@ -757,7 +1025,27 @@ import UserImage from '@/assets/meow.jpg';
   .info-label {
     width: 72px;
   }
-  
+
+  .paged-title-line {
+    flex-wrap: wrap;
+  }
+
+  .page-center-status {
+    position: static;
+    width: 100%;
+    justify-content: center;
+    order: 3;
+    transform: none;
+  }
+
+  .paged-stage {
+    padding: 0 42px;
+  }
+
+  .side-page-button {
+    width: 28px;
+  }
+
   .cast-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -776,6 +1064,32 @@ import UserImage from '@/assets/meow.jpg';
 @media (max-width: 480px) {
   .cast-grid {
     gap: 16px;
+  }
+
+  .paged-stage {
+    padding: 0 38px;
+  }
+
+  .summary-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .summary-rule {
+    width: 42px;
+    min-height: 4px;
+  }
+
+  .cast-tile {
+    min-height: 112px;
+    padding: 10px;
+  }
+
+  .cast-photo {
+    width: 64px;
+    height: 88px;
+    flex-basis: 64px;
   }
 
   .rating-panel {
