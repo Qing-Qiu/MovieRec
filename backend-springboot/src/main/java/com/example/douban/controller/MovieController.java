@@ -13,7 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:8081")
+@CrossOrigin(origins = {"http://localhost:8081", "http://localhost:8082"})
 @RequestMapping(value = "/movie")
 public class MovieController {
 
@@ -34,6 +34,7 @@ public class MovieController {
             
             ArrayList<Movie> finalMovies = new ArrayList<>();
             ArrayList<Movie> recommendedMovies = new ArrayList<>();
+            Set<String> selectedMovieIds = new HashSet<>();
 
             // 1. Get Recommendations if User Exists
             if (userId != null) {
@@ -64,43 +65,24 @@ public class MovieController {
             }
 
             // 2. Select up to 4 movies from recommendations
-            if (recommendedMovies.size() <= 4) {
-                finalMovies.addAll(recommendedMovies);
-            } else {
-                Collections.shuffle(recommendedMovies);
-                finalMovies.addAll(recommendedMovies.subList(0, 4));
-            }
+            recommendedMovies.stream()
+                    .filter(Objects::nonNull)
+                    .sorted(this::compareMovieQuality)
+                    .forEach(movie -> {
+                        if (finalMovies.size() < 4) {
+                            addMovieIfNew(finalMovies, selectedMovieIds, movie);
+                        }
+                    });
 
-            // 3. Fill the rest with random movies (Logic preserved/cleaned)
-            int currentSize = finalMovies.size();
+            // 3. Fill the rest with weighted popular movies.
             int totalNeeded = 8;
-            int needed = totalNeeded - currentSize;
-            
-            if (needed > 0) {
-                int totalParamMovies = movieService.countMovieByKeywords("");
-                int top60PercentCount = (int) (totalParamMovies * 0.6);
-                
-                for (int i = 0; i < needed; i++) {
-                    int percent = ThreadLocalRandom.current().nextInt(100) + 1;
-                    int offset;
-                    
-                    // 5% chance -> Top 60% popular (Low offset)
-                    // 95% chance -> Bottom 40% popular (High offset)
-                    if (percent > 95) {
-                         offset = ThreadLocalRandom.current().nextInt(top60PercentCount);
-                    } else {
-                         offset = top60PercentCount + ThreadLocalRandom.current().nextInt(totalParamMovies - top60PercentCount);
-                    }
-                    
-                    Movie randomMovie = movieService.findRandomMovie(String.valueOf(offset));
-                    if (randomMovie != null) {
-                        finalMovies.add(randomMovie);
-                    }
-                }
+            int totalParamMovies = movieService.countMovieByKeywords("");
+            int attempts = 0;
+            while (finalMovies.size() < totalNeeded && totalParamMovies > 0 && attempts < totalNeeded * 10) {
+                Movie randomMovie = movieService.findRandomMovie(pickWeightedPopularOffset(totalParamMovies));
+                addMovieIfNew(finalMovies, selectedMovieIds, randomMovie);
+                attempts++;
             }
-
-            // 4. Shuffle final result
-            Collections.shuffle(finalMovies);
 
             return ResponseEntity.ok(finalMovies);
         } catch (Exception e) {
@@ -123,7 +105,9 @@ public class MovieController {
     @PostMapping("/search")
     public ResponseEntity<ArrayList<Movie>> handleSearchPage(@RequestBody Map<String, String> movieData) {
         try {
-            ArrayList<Movie> movies = movieService.findMovieByKeyWords(movieData.get("keyword"), movieData.get("limit"), movieData.get("offset"));
+            int limit = RequestParams.readBoundedInt(movieData, "limit", 8, 1, 50);
+            int offset = RequestParams.readBoundedInt(movieData, "offset", 0, 0, 100000);
+            ArrayList<Movie> movies = movieService.findMovieByKeyWords(movieData.get("keyword"), limit, offset);
             return ResponseEntity.ok(movies);
         } catch (Exception e) {
             e.printStackTrace();
@@ -145,8 +129,10 @@ public class MovieController {
     @PostMapping("/classify")
     public ResponseEntity<ArrayList<Movie>> handleClassifyPage(@RequestBody Map<String, String> movieData) {
         try {
+            int limit = RequestParams.readBoundedInt(movieData, "limit", 8, 1, 50);
+            int offset = RequestParams.readBoundedInt(movieData, "offset", 0, 0, 100000);
             ArrayList<Movie> movies = movieService.findMovieByTag(
-                    movieData.get("tag1"), movieData.get("tag2"), movieData.get("tag3"), movieData.get("limit"), movieData.get("offset"));
+                    movieData.get("tag1"), movieData.get("tag2"), movieData.get("tag3"), limit, offset);
             return ResponseEntity.ok(movies);
         } catch (Exception e) {
             e.printStackTrace();
@@ -163,6 +149,58 @@ public class MovieController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.ok(null);
+        }
+    }
+
+    private boolean addMovieIfNew(ArrayList<Movie> movies, Set<String> selectedMovieIds, Movie movie) {
+        if (movie == null || movie.getMovieID() == null || selectedMovieIds.contains(movie.getMovieID())) {
+            return false;
+        }
+        selectedMovieIds.add(movie.getMovieID());
+        movies.add(movie);
+        return true;
+    }
+
+    private int pickWeightedPopularOffset(int totalMovies) {
+        int topCount = Math.max(1, (int) Math.ceil(totalMovies * 0.30));
+        int middleCount = Math.max(1, (int) Math.ceil(totalMovies * 0.50));
+        int tailStart = Math.min(totalMovies - 1, topCount + middleCount);
+        int bucket = ThreadLocalRandom.current().nextInt(100);
+
+        if (bucket < 70) {
+            return ThreadLocalRandom.current().nextInt(topCount);
+        }
+        if (bucket < 95 && tailStart > topCount) {
+            return topCount + ThreadLocalRandom.current().nextInt(tailStart - topCount);
+        }
+        return tailStart + ThreadLocalRandom.current().nextInt(Math.max(1, totalMovies - tailStart));
+    }
+
+    private int compareMovieQuality(Movie left, Movie right) {
+        int scoreCompare = Double.compare(movieQualityScore(right), movieQualityScore(left));
+        if (scoreCompare != 0) {
+            return scoreCompare;
+        }
+        return Integer.compare(parseInt(right.getPopular()), parseInt(left.getPopular()));
+    }
+
+    private double movieQualityScore(Movie movie) {
+        return parseDouble(movie.getRate()) * 1000 + Math.log10(parseInt(movie.getPopular()) + 1);
+    }
+
+    private double parseDouble(String value) {
+        try {
+            return value == null ? 0 : Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private int parseInt(String value) {
+        try {
+            return value == null ? 0 : Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 }

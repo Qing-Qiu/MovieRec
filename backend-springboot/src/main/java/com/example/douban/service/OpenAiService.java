@@ -58,7 +58,7 @@ public class OpenAiService {
             if ("user".equals(lastMsg.getRole())) {
                 String potentialMovieName = extractMovieName(lastMsg.getContent());
                 if (potentialMovieName != null && !potentialMovieName.isEmpty()) {
-                    ArrayList<Movie> movies = movieService.findMovieByKeyWords(potentialMovieName, "1", "0");
+                    ArrayList<Movie> movies = movieService.findMovieByKeyWords(potentialMovieName, 1, 0);
                     if (movies != null && !movies.isEmpty()) {
                         Movie m = movies.get(0);
                         String context = String.format("【已知信息】电影名：《%s》，导演：%s，主演：%s，评分：%s(满分5分)，类型：%s。",

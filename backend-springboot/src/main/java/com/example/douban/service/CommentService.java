@@ -16,7 +16,7 @@ public class CommentService {
         this.commentMapper = commentMapper;
     }
 
-    public ArrayList<Comment> findCommentByMovie(String id, String limit, String offset) {
+    public ArrayList<Comment> findCommentByMovie(String id, Integer limit, Integer offset) {
         return commentMapper.findCommentByMovie(id, limit, offset);
     }
 

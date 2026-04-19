@@ -13,13 +13,13 @@ import java.util.List;
 public interface MovieMapper {
     Movie findMovieById(@Param("id") String id);
 
-    Movie findRandomMovie(@Param("offset") String offset);
+    Movie findRandomMovie(@Param("offset") Integer offset);
 
-    ArrayList<Movie> findMovieByTag(@Param("tag1") String tag1, @Param("tag2") String tag2, @Param("tag3") String tag3, @Param("limit") String limit, @Param("offset") String offset);
+    ArrayList<Movie> findMovieByTag(@Param("tag1") String tag1, @Param("tag2") String tag2, @Param("tag3") String tag3, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countMovieByTag(@Param("tag1") String tag1, @Param("tag2") String tag2, @Param("tag3") String tag3);
 
-    ArrayList<Movie> findMovieByKeywords(@Param("keyword") String keyword, @Param("limit") String limit, @Param("offset") String offset);
+    ArrayList<Movie> findMovieByKeywords(@Param("keyword") String keyword, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countMovieByKeywords(@Param("keyword") String keyword);
 

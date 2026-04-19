@@ -263,15 +263,13 @@ export default {
              })
         ]);
 
-        if (countRes.data) {
-             this.count = countRes.data;
-        }
+        this.count = Number(countRes.data) || 0;
 
         this.movie_list = [];
         if (listRes.data) {
             for (let i = 0; i < Math.min(8, listRes.data.length); i++) {
                 let desc = listRes.data[i].genre || '';
-                if (desc.endsWith(',')) desc = desc.slice(0, -1);
+                desc = desc.replace(/[\s,，、]+$/g, '');
 
                 this.movie_list.push({
                   title: listRes.data[i].name,
@@ -324,23 +322,22 @@ export default {
 
 <style scoped>
 .movie-center-container {
-  padding: 24px;
+  padding: 8px 0 32px;
   max-width: 1400px;
   margin: 0 auto;
-  background: #fff;
   min-height: 80vh;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  text-align: left;
 }
 
 .filter-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: #fdfdfd;
+  background: var(--movie-surface);
   padding: 20px;
-  border-radius: 12px;
-  border: 1px solid #f0f0f0;
+  border-radius: var(--movie-radius);
+  border: 1px solid var(--movie-line);
+  box-shadow: var(--movie-shadow-sm);
 }
 
 .filter-group {
@@ -352,8 +349,8 @@ export default {
   font-weight: 600;
   margin-right: 16px;
   min-width: 60px;
-  color: #666;
-  margin-top: 6px; /* Align with tags */
+  color: var(--movie-muted);
+  margin-top: 6px;
 }
 
 .tags-wrapper {
@@ -363,27 +360,29 @@ export default {
 }
 
 .tag-item {
-  padding: 5px 16px;
-  border-radius: 20px;
+  padding: 5px 14px;
+  border-radius: var(--movie-radius);
   cursor: pointer;
   font-size: 14px;
-  color: #555;
-  transition: all 0.2s ease;
+  color: var(--movie-ink);
+  border: 1px solid transparent;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
   background: transparent;
 }
 
 .tag-item:hover {
   text-decoration: none;
-  color: #1890ff;
-  background: rgba(24, 144, 255, 0.08);
+  color: var(--movie-accent);
+  background: rgba(196, 59, 69, 0.08);
+  border-color: rgba(196, 59, 69, 0.18);
 }
 
 .tag-item.active {
-  background: #1890ff;
+  background: var(--movie-accent);
   color: #fff;
   font-weight: 500;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.25);
+  box-shadow: 0 6px 14px rgba(196, 59, 69, 0.22);
 }
 
 .movie-list-section {
@@ -391,36 +390,55 @@ export default {
 }
 
 .movie-card {
-  border-radius: 12px;
+  border-radius: var(--movie-radius);
   overflow: hidden;
-  transition: all 0.3s ease;
-  border: none;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+  border: 1px solid var(--movie-line);
+  background: var(--movie-surface);
+  box-shadow: var(--movie-shadow-sm);
   height: 100%;
 }
 
 .movie-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+  transform: translateY(-4px);
+  border-color: rgba(196, 59, 69, 0.32);
+  box-shadow: var(--movie-shadow-md);
+}
+
+:deep(.movie-card .ant-card-body) {
+  min-height: 92px;
+  padding: 14px 16px 16px;
+}
+
+:deep(.movie-card .ant-card-meta-title) {
+  color: var(--movie-ink);
+  font-weight: 650;
+  letter-spacing: 0;
+  margin-bottom: 6px !important;
+}
+
+:deep(.movie-card .ant-card-meta-description) {
+  min-height: 20px;
 }
 
 .image-wrapper {
-  height: 360px;
+  aspect-ratio: 2 / 3;
+  background: #e8edf2;
   overflow: hidden;
   position: relative;
 }
 
 .image-wrapper :deep(img) {
-  transition: transform 0.5s ease;
+  display: block;
+  transition: transform 0.42s ease;
 }
 
 .movie-card:hover .image-wrapper :deep(img) {
-  transform: scale(1.05);
+  transform: scale(1.04);
 }
 
 .movie-genre {
-  color: #888;
+  color: var(--movie-muted);
   font-size: 13px;
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -436,7 +454,22 @@ export default {
 }
 
 .empty-state {
- padding: 60px 0;
- text-align: center;
+  padding: 60px 0;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .filter-section {
+    padding: 16px;
+  }
+
+  .filter-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .filter-label {
+    margin-top: 0;
+  }
 }
 </style>

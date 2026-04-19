@@ -13,15 +13,15 @@ import java.util.ArrayList;
 public interface PersonMapper {
     Person findPersonById(@Param("id") String id);
 
-    ArrayList<Person> findPersonByMovie(@Param("id") String id, @Param("limit") String limit, @Param("offset") String offset);
+    ArrayList<Person> findPersonByMovie(@Param("id") String id, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countPersonByMovie(@Param("id") String id);
 
-    ArrayList<Movie> findMovieByPerson(@Param("id") String id, @Param("limit") String limit, @Param("offset") String offset);
+    ArrayList<Movie> findMovieByPerson(@Param("id") String id, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countMovieByPerson(@Param("id") String id);
 
-    ArrayList<Person> findPersonByKeywords(@Param("keyword") String keyword, @Param("limit") String limit, @Param("offset") String offset);
+    ArrayList<Person> findPersonByKeywords(@Param("keyword") String keyword, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countPersonByKeywords(@Param("keyword") String keyword);
 }

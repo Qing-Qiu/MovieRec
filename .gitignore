@@ -1,0 +1,29 @@
+.idea/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Runtime logs created by local service runs
+*.log
+
+# Java/Maven build output
+backend-springboot/target/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Python cache/runtime artifacts
+__pycache__/
+*.py[cod]
+
+# Local Python virtual environments
+.venv/
+.venv*/
+backend-flask/.venv/
+backend-flask/.venv*/
+
+# Local environment files
+.env
+.env.*

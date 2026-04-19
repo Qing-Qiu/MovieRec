@@ -1,6 +1,6 @@
 <template>
   <div class="skeleton-card">
-    <a-skeleton-image style="width: 100%; height: 260px; margin-bottom: 8px" />
+    <a-skeleton-image class="skeleton-poster" />
     <a-skeleton :paragraph="{ rows: 2 }" active />
   </div>
 </template>
@@ -14,8 +14,17 @@ export default {
 <style scoped>
 .skeleton-card {
   padding: 12px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  background: var(--movie-surface);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  box-shadow: var(--movie-shadow-sm);
+}
+
+:deep(.skeleton-poster) {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3;
+  margin-bottom: 12px;
+  border-radius: 6px;
 }
 </style>

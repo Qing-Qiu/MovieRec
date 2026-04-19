@@ -7,7 +7,7 @@
         SELECT userID, nickname, comment, movieID
         FROM comments
         WHERE movieID = #{id}
-        LIMIT ${limit} OFFSET ${offset};
+        LIMIT #{limit} OFFSET #{offset};
     </select>
     <select id="countCommentByMovie" resultType="int">
         SELECT count(*)

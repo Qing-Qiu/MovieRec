@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Map;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:8081")
+@CrossOrigin(origins = {"http://localhost:8081", "http://localhost:8082"})
 @RequestMapping(value = "/comment")
 public class CommentController {
     @Resource
@@ -19,8 +19,10 @@ public class CommentController {
     @PostMapping("/comment")
     public ResponseEntity<ArrayList<Comment>> handleCommentPage(@RequestBody Map<String, String> commentData) {
         try {
+            int limit = RequestParams.readBoundedInt(commentData, "limit", 8, 1, 50);
+            int offset = RequestParams.readBoundedInt(commentData, "offset", 0, 0, 100000);
             ArrayList<Comment> comments = commentService.findCommentByMovie(
-                    commentData.get("id"), commentData.get("limit"), commentData.get("offset"));
+                    commentData.get("id"), limit, offset);
             return ResponseEntity.ok(comments);
         } catch (Exception e) {
             e.printStackTrace();

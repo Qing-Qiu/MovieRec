@@ -70,7 +70,7 @@
         <div class="input-wrapper">
           <a-textarea
             v-model:value="inputContent"
-            placeholder="输入您的问题... (Shift + Enter 换行)"
+            placeholder="向 MovieRec 提问..."
             :auto-size="{ minRows: 1, maxRows: 5 }"
             @pressEnter="handleEnter"
             class="chat-input"
@@ -197,16 +197,18 @@ const sendMessage = async () => {
 <style scoped>
 .chat-layout {
   display: flex;
-  height: 85vh; /* Reduced height to avoid page scroll */
-  background-color: #f5f7fa;
+  height: 85vh;
+  background-color: var(--movie-bg);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  box-shadow: var(--movie-shadow-sm);
   overflow: hidden;
 }
 
-/* Sidebar */
 .sidebar {
   width: 260px;
-  background-color: white;
-  border-right: 1px solid #e8e8e8;
+  background-color: var(--movie-surface);
+  border-right: 1px solid var(--movie-line);
   display: flex;
   flex-direction: column;
 }
@@ -216,9 +218,16 @@ const sendMessage = async () => {
 }
 
 .new-chat-btn {
-  border-radius: 8px;
+  border-radius: var(--movie-radius);
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
   height: 40px;
   font-size: 15px;
+}
+
+.new-chat-btn:hover {
+  background: var(--movie-accent-dark) !important;
+  border-color: var(--movie-accent-dark) !important;
 }
 
 .history-list {
@@ -233,18 +242,18 @@ const sendMessage = async () => {
   padding: 12px 16px;
   margin-bottom: 4px;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--movie-radius);
   transition: background 0.2s;
-  color: #333;
+  color: var(--movie-ink);
 }
 
 .history-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--movie-surface-soft);
 }
 
 .history-item.active {
-  background-color: #e6f7ff;
-  color: #1890ff;
+  background-color: rgba(196, 59, 69, 0.08);
+  color: var(--movie-accent);
 }
 
 .history-icon {
@@ -259,7 +268,6 @@ const sendMessage = async () => {
   font-size: 14px;
 }
 
-/* Main Area */
 .main-area {
   flex: 1;
   display: flex;
@@ -269,11 +277,11 @@ const sendMessage = async () => {
 
 .chat-header {
   height: 60px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--movie-line);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--movie-surface);
   z-index: 10;
 }
 
@@ -285,17 +293,32 @@ const sendMessage = async () => {
 
 .model-name {
   font-weight: 600;
-  color: #444;
+  color: var(--movie-ink);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .model-icon {
-  color: #722ed1;
+  color: var(--movie-accent);
 }
 
-/* Messages */
+:deep(.ant-radio-button-wrapper:hover) {
+  color: var(--movie-accent);
+}
+
+:deep(.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)) {
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
+  color: #fff;
+}
+
+:deep(.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled):hover) {
+  background: var(--movie-accent-dark);
+  border-color: var(--movie-accent-dark);
+  color: #fff;
+}
+
 .messages-container {
   flex: 1;
   overflow-y: auto;
@@ -322,53 +345,51 @@ const sendMessage = async () => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #f0f0f0;
+  background: var(--movie-surface-soft);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   font-size: 18px;
-  color: #666;
-  margin-top: 4px; /* Align with top of bubble */
+  color: var(--movie-muted);
+  margin-top: 4px;
 }
 
 .message-row.assistant .avatar {
-  background: #f9f0ff;
-  color: #722ed1;
+  background: rgba(21, 127, 131, 0.1);
+  color: var(--movie-teal);
 }
 
 .message-row.user .avatar {
-  background: #e6f7ff;
-  color: #1890ff;
+  background: rgba(196, 59, 69, 0.1);
+  color: var(--movie-accent);
 }
 
 .bubble {
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--movie-radius);
   font-size: 15px;
   line-height: 1.6;
   max-width: 80%;
   word-wrap: break-word;
-  text-align: left; /* Explicitly set left alignment */
+  text-align: left;
 }
 
 .message-row.assistant .bubble {
-  background: white;
-  border: 1px solid #f0f0f0;
+  background: var(--movie-surface);
+  border: 1px solid var(--movie-line);
   box-shadow: 0 2px 8px rgba(0,0,0,0.02);
 }
 
 .message-row.user .bubble {
-  background: #1890ff;
+  background: var(--movie-accent);
   color: white;
 }
 
-/* Make sure markdown content inside also follows rules */
 .bubble-content {
   overflow-wrap: break-word;
 }
 
-/* Markdown styling overrides for bubbles */
 :deep(.markdown-body) {
   font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;
 }
@@ -384,37 +405,32 @@ const sendMessage = async () => {
   border-radius: 6px;
   overflow-x: auto;
 }
-/* Ensure white text for code blocks in user bubble if needed, 
-   but usually user sends plain text. If user sends code, it might look odd on blue.
-   Let's keep user bubble simple or adapt only assistant. */
 .message-row.user :deep(.markdown-body pre) {
   background-color: rgba(255,255,255,0.2);
   color: white;
 }
 
-/* Empty State */
 .empty-state {
   margin: auto;
   text-align: center;
-  color: #999;
+  color: var(--movie-muted);
 }
 
 .empty-icon-wrapper {
   font-size: 48px;
   margin-bottom: 20px;
-  color: #e0e0e0;
+  color: rgba(196, 59, 69, 0.26);
 }
 
 .empty-state h3 {
-  color: #333;
+  color: var(--movie-ink);
   margin-bottom: 10px;
 }
 
-/* Input Area */
 .input-area {
-  background: white;
+  background: var(--movie-surface);
   padding: 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--movie-line);
 }
 
 .input-wrapper {
@@ -427,21 +443,28 @@ const sendMessage = async () => {
 }
 
 .chat-input {
-  border-radius: 12px;
+  border-radius: var(--movie-radius);
   padding: 10px 15px;
   resize: none;
-  border-color: #d9d9d9;
+  border-color: var(--movie-line);
 }
 
 .chat-input:hover, .chat-input:focus {
-  border-color: #1890ff;
-  box-shadow: none; 
+  border-color: var(--movie-accent);
+  box-shadow: 0 0 0 3px rgba(196, 59, 69, 0.12);
 }
 
 .send-btn {
   flex-shrink: 0;
   width: 40px;
   height: 40px;
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
+}
+
+.send-btn:hover {
+  background: var(--movie-accent-dark) !important;
+  border-color: var(--movie-accent-dark) !important;
 }
 
 .footer-text {
@@ -451,7 +474,6 @@ const sendMessage = async () => {
   margin-top: 10px;
 }
 
-/* Loading Dots */
 .loading-bubble {
   display: flex;
   gap: 4px;
@@ -462,7 +484,7 @@ const sendMessage = async () => {
 .dot {
   width: 6px;
   height: 6px;
-  background: #bbb;
+  background: var(--movie-muted);
   border-radius: 50%;
   animation: bounce 1.4s infinite ease-in-out both;
 }
@@ -475,10 +497,13 @@ const sendMessage = async () => {
   40% { transform: scale(1); }
 }
 
-/* Mobile Responsiveness */
 @media (max-width: 768px) {
   .sidebar {
-    display: none; /* Hide sidebar on small screens for now */
+    display: none;
+  }
+
+  .chat-layout {
+    height: calc(100vh - 96px);
   }
 }
 </style>

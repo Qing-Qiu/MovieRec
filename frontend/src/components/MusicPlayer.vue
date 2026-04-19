@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { useCounterStore } from "@/store/store";
 import { CustomerServiceOutlined, DownOutlined } from "@ant-design/icons-vue";
 
@@ -158,14 +158,14 @@ onMounted(() => {
 
 /* Expanded Player Stlyes */
 .player-panel {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(10px);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  border-radius: var(--movie-radius);
+  box-shadow: var(--movie-shadow-md);
   width: 320px;
   padding: 16px;
   animation: slideIn 0.3s ease;
-  border: 1px solid rgba(0,0,0,0.05);
+  border: 1px solid var(--movie-line);
 }
 
 .player-controls {
@@ -179,18 +179,18 @@ onMounted(() => {
   top: 8px;
   right: 12px;
   cursor: pointer;
-  color: #888;
-  transition: color 0.3s;
+  color: var(--movie-muted);
+  transition: color 0.2s ease;
 }
 
 .close-btn:hover {
-  color: #333;
+  color: var(--movie-accent);
 }
 
 .lyrics-display {
   text-align: center;
   margin-bottom: 8px;
-  height: 48px; /* Fixed height for two lines or one padded line */
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,7 +199,7 @@ onMounted(() => {
 
 .current-lyric {
   font-size: 14px;
-  color: #1890ff;
+  color: var(--movie-accent);
   font-weight: 500;
   margin: 0;
   transition: all 0.3s ease;
@@ -217,12 +217,12 @@ onMounted(() => {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
+  background: var(--movie-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+  box-shadow: 0 12px 22px rgba(196, 59, 69, 0.28);
   transition: transform 0.3s ease;
 }
 
@@ -252,11 +252,22 @@ onMounted(() => {
 /* Dark mode tweaks if needed */
 @media (prefers-color-scheme: dark) {
   .player-panel {
-    background: rgba(30, 30, 30, 0.95);
+    background: rgba(21, 25, 31, 0.95);
     color: #fff;
   }
   .current-lyric {
-    color: #40a9ff;
+    color: #f3b0b5;
+  }
+}
+
+@media (max-width: 520px) {
+  .music-player-container {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .player-panel {
+    width: min(320px, calc(100vw - 24px));
   }
 }
 </style>

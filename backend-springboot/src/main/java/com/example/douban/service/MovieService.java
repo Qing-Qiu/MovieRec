@@ -21,11 +21,11 @@ public class MovieService {
         return movieMapper.findMovieById(id);
     }
 
-    public Movie findRandomMovie(String offset) {
+    public Movie findRandomMovie(Integer offset) {
         return movieMapper.findRandomMovie(offset);
     }
 
-    public ArrayList<Movie> findMovieByTag(String tag1, String tag2, String tag3, String limit, String offset) {
+    public ArrayList<Movie> findMovieByTag(String tag1, String tag2, String tag3, Integer limit, Integer offset) {
         return movieMapper.findMovieByTag(tag1, tag2, tag3, limit, offset);
     }
 
@@ -33,7 +33,7 @@ public class MovieService {
         return movieMapper.countMovieByTag(tag1, tag2, tag3);
     }
 
-    public ArrayList<Movie> findMovieByKeyWords(String keyword, String limit, String offset) {
+    public ArrayList<Movie> findMovieByKeyWords(String keyword, Integer limit, Integer offset) {
         return movieMapper.findMovieByKeywords(keyword, limit, offset);
     }
 

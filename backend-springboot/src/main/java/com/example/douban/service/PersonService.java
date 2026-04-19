@@ -21,7 +21,7 @@ public class PersonService {
         return personMapper.findPersonById(id);
     }
 
-    public ArrayList<Person> findPersonByMovie(String id, String limit, String offset) {
+    public ArrayList<Person> findPersonByMovie(String id, Integer limit, Integer offset) {
         return personMapper.findPersonByMovie(id, limit, offset);
     }
 
@@ -29,7 +29,7 @@ public class PersonService {
         return personMapper.countPersonByMovie(id);
     }
 
-    public ArrayList<Movie> findMovieByPerson(String id, String limit, String offset) {
+    public ArrayList<Movie> findMovieByPerson(String id, Integer limit, Integer offset) {
         return personMapper.findMovieByPerson(id, limit, offset);
     }
 
@@ -37,7 +37,7 @@ public class PersonService {
         return personMapper.countMovieByPerson(id);
     }
 
-    public ArrayList<Person> findPersonByKeywords(String keyword, String limit, String offset) {
+    public ArrayList<Person> findPersonByKeywords(String keyword, Integer limit, Integer offset) {
         return personMapper.findPersonByKeywords(keyword, limit, offset);
     }
 

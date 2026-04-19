@@ -9,12 +9,99 @@
         WHERE year &lt; 2016
         ORDER BY year;
     </select>
+    <select id="getMostPopularMoviesByYear" resultType="com.example.douban.pojo.Movie">
+        SELECT m.name, m.movieID, m.popular, m.year
+        FROM movie m
+        INNER JOIN (
+            SELECT year, MAX(CAST(popular AS SIGNED)) AS max_popular
+            FROM movie
+            WHERE year &lt; 2016
+            GROUP BY year
+        ) ranked ON ranked.year = m.year
+            AND ranked.max_popular = CAST(m.popular AS SIGNED)
+        WHERE m.year &lt; 2016
+        ORDER BY m.year;
+    </select>
     <select id="getMostPopularMovie" resultType="com.example.douban.pojo.Movie">
         SELECT name, movieID, popular, year
         FROM movie
         WHERE year = #{year}
         ORDER BY CAST(popular AS SIGNED) DESC
         LIMIT 1;
+    </select>
+    <select id="getMovieCountsByTagByYear" resultType="com.example.douban.pojo.Movie">
+        SELECT y.year,
+               COALESCE(c.cnt, 0) AS movieID,
+               #{tag} AS genre
+        FROM (
+            SELECT DISTINCT year
+            FROM movie
+            WHERE year &lt; 2016
+        ) y
+        LEFT JOIN (
+            SELECT year, COUNT(*) AS cnt
+            FROM movie
+            WHERE year &lt; 2016
+            <if test="tag != null and tag != '' and tag == '其它'">
+                AND genre NOT LIKE CONCAT('%','动作','%')
+                AND genre NOT LIKE CONCAT('%','动画','%')
+                AND genre NOT LIKE CONCAT('%','喜剧','%')
+                AND genre NOT LIKE CONCAT('%','犯罪','%')
+                AND genre NOT LIKE CONCAT('%','科幻','%')
+                AND genre NOT LIKE CONCAT('%','历史','%')
+                AND genre NOT LIKE CONCAT('%','音乐','%')
+                AND genre NOT LIKE CONCAT('%','爱情','%')
+                AND genre NOT LIKE CONCAT('%','悬疑','%')
+                AND genre NOT LIKE CONCAT('%','惊悚','%')
+            </if>
+            <if test="tag != null and tag != '' and tag != '其它'">
+                AND genre LIKE CONCAT('%', #{tag}, '%')
+            </if>
+            GROUP BY year
+        ) c ON c.year = y.year
+        ORDER BY y.year;
+    </select>
+    <select id="getMovieTypeCountRow" resultType="map">
+        SELECT
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','动作','%') THEN 1 ELSE 0 END), 0) AS action_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','动画','%') THEN 1 ELSE 0 END), 0) AS animation_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','喜剧','%') THEN 1 ELSE 0 END), 0) AS comedy_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','犯罪','%') THEN 1 ELSE 0 END), 0) AS crime_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','科幻','%') THEN 1 ELSE 0 END), 0) AS science_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','历史','%') THEN 1 ELSE 0 END), 0) AS history_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','音乐','%') THEN 1 ELSE 0 END), 0) AS music_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','爱情','%') THEN 1 ELSE 0 END), 0) AS romance_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','悬疑','%') THEN 1 ELSE 0 END), 0) AS mystery_count,
+            COALESCE(SUM(CASE WHEN genre LIKE CONCAT('%','惊悚','%') THEN 1 ELSE 0 END), 0) AS thriller_count,
+            COALESCE(SUM(CASE
+                WHEN genre NOT LIKE CONCAT('%','动作','%')
+                    AND genre NOT LIKE CONCAT('%','动画','%')
+                    AND genre NOT LIKE CONCAT('%','喜剧','%')
+                    AND genre NOT LIKE CONCAT('%','犯罪','%')
+                    AND genre NOT LIKE CONCAT('%','科幻','%')
+                    AND genre NOT LIKE CONCAT('%','历史','%')
+                    AND genre NOT LIKE CONCAT('%','音乐','%')
+                    AND genre NOT LIKE CONCAT('%','爱情','%')
+                    AND genre NOT LIKE CONCAT('%','悬疑','%')
+                    AND genre NOT LIKE CONCAT('%','惊悚','%')
+                THEN 1 ELSE 0
+            END), 0) AS other_count
+        FROM movie
+        WHERE 1 = 1
+        <if test="year != null and year != '' and year != '全部'">
+            AND year = #{year}
+        </if>
+    </select>
+    <select id="getGenreRowsByNickname" resultType="string">
+        SELECT m.genre
+        FROM movie m
+        INNER JOIN usrrate_none r ON r.movid = m.movieID
+        WHERE r.nickname = #{nickname}
+        UNION ALL
+        SELECT m.genre
+        FROM movie m
+        INNER JOIN comments c ON c.movieID = m.movieID
+        WHERE c.nickname = #{nickname}
     </select>
     <select id="getMovieCountByTag" resultType="com.example.douban.pojo.Movie">
         SELECT COUNT(*) AS movieID,
@@ -38,7 +125,7 @@
             AND genre NOT LIKE CONCAT('%','惊悚','%')
         </if>
         <if test="tag != '其它'">
-            AND genre LIKE CONCAT('%', #{tag}, '%');
+            AND genre LIKE CONCAT('%', #{tag}, '%')
         </if>
     </select>
 </mapper>

@@ -88,9 +88,6 @@
     </div>
   </div>
 </template>
-<script setup>
-import HomePage from "@/views/HomePage";
-</script>
 <script>
 import axios from "axios";
 import router from "@/router/router";
@@ -125,6 +122,12 @@ export default {
       },
       value5: ['当前未登录，请登录后查看'],
       requestId: 0,
+      chartCache: {
+        chart1: null,
+        chart2: {},
+        chart3: {},
+        figure: {},
+      },
     }
   },
   computed: {
@@ -133,6 +136,7 @@ export default {
     async onChange() {
       // If switching to My Profile and not logged in, do not trigger loading or API call
       if (this.value === '我的画像' && !this.nickname) {
+        this.disposeChart();
         this.loading = false;
         return;
       }
@@ -155,6 +159,7 @@ export default {
       this.onChange();
     },
     async getGraph(id) {
+      await this.$nextTick();
       this.category = [];
       this.lineData = [];
       this.barData = [];
@@ -167,32 +172,31 @@ export default {
 
       const echarts = await import('echarts');
       if (id !== this.requestId) return; // Check after import
-      
-      await import('echarts-wordcloud');
-      if (id !== this.requestId) return; // Check after import
-      
-      let myChart = echarts.init(document.getElementById('graph'));
-      myChart.clear();
+
+      const graph = document.getElementById('graph');
+      if (!graph) return;
+      this.recreateChart(echarts, graph);
+      let myChart = this.chart;
       
       if (this.value === '历年最受欢迎电影') {
         try {
-          const response = await axios.post('http://localhost:8080/chart/chart1',
-              {}).then(response => {
-            if (id !== this.requestId) return; // Check inside promise if needed, but safer after await
-            let len = response.data.length;
-            for (let i = 0; i < len; i++) {
-              this.category.push(response.data[i].year);
-              this.barData.push(parseInt(response.data[i].popular));
-              this.movieName.push(response.data[i].name);
-            }
-          }, error => {
-          })
+          let rows = this.chartCache.chart1;
+          if (!rows) {
+            const response = await axios.post('http://localhost:8080/chart/chart1', {});
+            rows = response.data || [];
+            this.chartCache.chart1 = rows;
+          }
+          if (id !== this.requestId) return;
+          for (let i = 0; i < rows.length; i++) {
+            this.category.push(rows[i].year);
+            this.barData.push(parseInt(rows[i].popular));
+            this.movieName.push(rows[i].name);
+          }
         } catch (error) {
         }
         
         if (id !== this.requestId) return; // Check before drawing
         
-        console.log(this.movieName);
         let movieName = this.movieName;
         myChart.setOption({
           backgroundColor: 'transparent',
@@ -246,15 +250,15 @@ export default {
               itemStyle: {
                 borderRadius: [4, 4, 0, 0],
                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: '#7EB6FF' },
-                  { offset: 1, color: '#5F89FF' }
+                  { offset: 0, color: '#d75760' },
+                  { offset: 1, color: '#9f2f37' }
                 ])
               },
               emphasis: {
                  itemStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                      { offset: 0, color: '#5F89FF' },
-                      { offset: 1, color: '#7EB6FF' }
+                      { offset: 0, color: '#9f2f37' },
+                      { offset: 1, color: '#d75760' }
                     ])
                  }
               },
@@ -273,17 +277,19 @@ export default {
         });
       } else if (this.value === '历年各种类型电影数量（柱状图）') {
         try {
-          const response = await axios.post('http://localhost:8080/chart/chart2',
-              {tag: (this.value2 === '全部' ? '' : this.value2)}).then(response => {
-            if (id !== this.requestId) return;
-            let len = response.data.length;
-            console.log(response);
-            for (let i = 0; i < len; i++) {
-              this.category.push(response.data[i].year);
-              this.barData.push(parseInt(response.data[i].movieID));
-            }
-          }, error => {
-          })
+          const cacheKey = this.value2 === '全部' ? '__all__' : this.value2;
+          let rows = this.chartCache.chart2[cacheKey];
+          if (!rows) {
+            const response = await axios.post('http://localhost:8080/chart/chart2',
+                {tag: (this.value2 === '全部' ? '' : this.value2)});
+            rows = response.data || [];
+            this.chartCache.chart2[cacheKey] = rows;
+          }
+          if (id !== this.requestId) return;
+          for (let i = 0; i < rows.length; i++) {
+            this.category.push(rows[i].year);
+            this.barData.push(parseInt(rows[i].movieID));
+          }
         } catch (error) {
         }
         
@@ -328,15 +334,15 @@ export default {
               itemStyle: {
                 borderRadius: [4, 4, 0, 0],
                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: '#FF9A9E' },
-                  { offset: 1, color: '#FECFEF' }
+                  { offset: 0, color: '#36a5a4' },
+                  { offset: 1, color: '#157f83' }
                 ])
               },
                emphasis: {
                  itemStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                      { offset: 0, color: '#FECFEF' },
-                      { offset: 1, color: '#FF9A9E' }
+                      { offset: 0, color: '#157f83' },
+                      { offset: 1, color: '#36a5a4' }
                     ])
                  }
               },
@@ -355,29 +361,28 @@ export default {
         });
       } else if (this.value === '历年各种类型电影数量（饼图）') {
         try {
-          const response = await axios.post('http://localhost:8080/chart/chart3',
-              {year: this.value3}).then(response => {
-            if (id !== this.requestId) return;
-            let len = response.data.length;
-            console.log(response);
-            for (let i = 0; i < len; i++) {
-              let count = parseInt(response.data[i].movieID);
-              if (count > 0) {
-                this.pieData.push({
-                  name: response.data[i].genre,
-                  value: count
-                });
-              }
+          const cacheKey = this.value3 || '全部';
+          let rows = this.chartCache.chart3[cacheKey];
+          if (!rows) {
+            const response = await axios.post('http://localhost:8080/chart/chart3', {year: this.value3});
+            rows = response.data || [];
+            this.chartCache.chart3[cacheKey] = rows;
+          }
+          if (id !== this.requestId) return;
+          for (let i = 0; i < rows.length; i++) {
+            let count = parseInt(rows[i].movieID);
+            if (count > 0) {
+              this.pieData.push({
+                name: rows[i].genre,
+                value: count
+              });
             }
-          }, error => {
-          })
+          }
         } catch (error) {
         }
         
         if (id !== this.requestId) return;
 
-        console.log(this.category);
-        console.log(this.pieData);
         myChart.setOption({
           backgroundColor: 'transparent',
           tooltip: {
@@ -436,17 +441,24 @@ export default {
         });
       } else if (this.value === '我的画像') {
         try {
-          const response = await axios.post('http://localhost:8080/chart/figure',
-              {nickname: sessionStorage.getItem('nickname')}).then(response => {
-            if (id !== this.requestId) return;
-            for (let i in response.data) {
+          await import('echarts-wordcloud');
+          if (id !== this.requestId) return;
+
+          const cacheKey = this.nickname || sessionStorage.getItem('nickname') || '';
+          let rows = this.chartCache.figure[cacheKey];
+          if (!rows) {
+            const response = await axios.post('http://localhost:8080/chart/figure',
+                {nickname: cacheKey});
+            rows = response.data || {};
+            this.chartCache.figure[cacheKey] = rows;
+          }
+          if (id !== this.requestId) return;
+          for (let i in rows) {
               this.keyData.push({
                 name: i,
-                value: response.data[i]
+                value: rows[i]
               });
-            }
-          }, error => {
-          })
+          }
         } catch (error) {
         }
         
@@ -475,8 +487,8 @@ export default {
               color: function () {
                 // Soft pastel palette
                 const colors = [
-                  '#FF9A9E', '#FECFEF', '#7EB6FF', '#5F89FF',
-                  '#a18cd1', '#fbc2eb', '#8fd3f4', '#84fab0'
+                  '#c43b45', '#157f83', '#b58a2f', '#65707c',
+                  '#9f2f37', '#36a5a4', '#d0a74b', '#171b20'
                 ];
                 return colors[Math.floor(Math.random() * colors.length)];
               }
@@ -496,6 +508,16 @@ export default {
       sessionStorage.clear();
       this.nickname = '';
       router.push('/auth/login');
+    },
+    recreateChart(echarts, graph) {
+      this.disposeChart();
+      this.chart = echarts.init(graph);
+    },
+    disposeChart() {
+      if (this.chart) {
+        this.chart.dispose();
+        this.chart = null;
+      }
     }
   },
   async beforeMount() {
@@ -504,7 +526,6 @@ export default {
       const response = await axios.post('http://localhost:8080/chart/year',
           {}).then(response => {
         let len = response.data.length;
-        console.log(response);
         for (let i = 0; i < len; i++) {
           this.year.push(response.data[i]);
         }
@@ -518,21 +539,24 @@ export default {
     this.requestId++;
     await this.getGraph(this.requestId);
     this.loading = false;
+  },
+  beforeUnmount() {
+    this.disposeChart();
   }
 }
 </script>
 <style scoped>
 .chart-container {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
-  padding: 32px;
+  background: var(--movie-surface);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  box-shadow: var(--movie-shadow-sm);
+  padding: 28px;
   max-width: 1400px;
-  margin: 24px auto;
+  margin: 8px auto 32px;
   min-height: 650px;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
 }
 
 .header-section {
@@ -545,14 +569,10 @@ export default {
 
 .chart-title {
   font-size: 28px;
-  color: #1f1f1f;
+  color: var(--movie-ink);
   margin-bottom: 24px;
   font-weight: 700;
-  letter-spacing: -0.5px;
-  background: linear-gradient(135deg, #1f1f1f 0%, #434343 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  letter-spacing: 0;
 }
 
 .controls-wrapper {
@@ -566,17 +586,17 @@ export default {
 
 /* Main Chart Selector Style Override */
 .main-chart-selector {
-  background-color: #f5f7fa;
-  border: 1px solid #edf0f5;
+  background-color: var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
   padding: 4px;
-  border-radius: 12px;
+  border-radius: var(--movie-radius);
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 
 :deep(.ant-segmented-item-selected) {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
   background-color: #fff !important;
-  color: #1890ff !important;
+  color: var(--movie-accent) !important;
   border-radius: 8px !important;
 }
 
@@ -595,9 +615,9 @@ export default {
 
 .filter-label {
   font-size: 14px;
-  color: #8c8c8c;
+  color: var(--movie-muted);
   font-weight: 500;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
 }
 
 /* Pill Selector for Movie Types */
@@ -611,38 +631,39 @@ export default {
 
 .pill-item {
   padding: 6px 16px;
-  border-radius: 20px;
+  border-radius: var(--movie-radius);
   font-size: 14px;
-  color: #555;
-  background-color: #f7f9fc;
+  color: var(--movie-ink);
+  background-color: var(--movie-surface-soft);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid transparent;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid var(--movie-line);
   user-select: none;
 }
 
 .pill-item:hover {
-  background-color: #e6f7ff;
-  color: #1890ff;
-  transform: translateY(-1px);
+  background-color: rgba(196, 59, 69, 0.08);
+  border-color: rgba(196, 59, 69, 0.22);
+  color: var(--movie-accent);
 }
 
 .pill-item.active {
-  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+  box-shadow: 0 6px 14px rgba(196, 59, 69, 0.22);
   font-weight: 500;
 }
 
 /* Custom Select Styling */
 :deep(.ant-select-selector) {
-  border-radius: 8px !important;
-  border-color: #d9d9d9 !important;
+  border-radius: var(--movie-radius) !important;
+  border-color: var(--movie-line) !important;
   box-shadow: 0 2px 0 rgba(0,0,0,0.02) !important;
 }
 :deep(.ant-select-focused .ant-select-selector) {
-  border-color: #40a9ff !important;
-  box-shadow: 0 0 0 2px rgba(24,144,255,0.2) !important;
+  border-color: var(--movie-accent) !important;
+  box-shadow: 0 0 0 3px rgba(196, 59, 69, 0.12) !important;
 }
 
 /* Login Prompt */
@@ -660,14 +681,13 @@ export default {
   width: 100%;
   position: relative;
   background: #ffffff;
-  border-radius: 12px;
-  /* border: 1px solid #f0f0f0; */
+  border-radius: var(--movie-radius);
 }
 
 .graph-content {
   width: 100%;
   height: 600px;
-  border-radius: 12px;
+  border-radius: var(--movie-radius);
   margin: 0 auto;
 }
 
@@ -687,9 +707,9 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f9f9f9;
-  border-radius: 12px;
-  border: 2px dashed #e8e8e8;
+  background-color: var(--movie-surface-soft);
+  border-radius: var(--movie-radius);
+  border: 1px dashed var(--movie-line);
 }
 
 .guest-content {
@@ -706,34 +726,58 @@ export default {
   margin-bottom: 24px;
   padding: 24px;
   background: #fff;
-  border-radius: 50%;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: var(--movie-radius);
 }
 
 .guest-title {
   font-size: 20px;
   font-weight: 600;
-  color: #1f1f1f;
+  color: var(--movie-ink);
   margin-bottom: 12px;
 }
 
 .guest-desc {
   font-size: 14px;
-  color: #8c8c8c;
+  color: var(--movie-muted);
   line-height: 1.6;
   margin-bottom: 32px;
 }
 
 .guest-btn {
   padding: 0 32px;
-  border-radius: 20px;
+  border-radius: var(--movie-radius);
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
   font-weight: 500;
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+  box-shadow: 0 12px 22px rgba(196, 59, 69, 0.2);
   height: 40px;
 }
 
 .guest-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.4);
+  background: var(--movie-accent-dark) !important;
+  border-color: var(--movie-accent-dark) !important;
+  box-shadow: 0 14px 26px rgba(196, 59, 69, 0.24);
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    padding: 20px 16px;
+  }
+
+  .chart-title {
+    font-size: 24px;
+  }
+
+  .main-chart-selector {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .graph-content,
+  .guest-state {
+    height: 480px;
+  }
 }
 </style>

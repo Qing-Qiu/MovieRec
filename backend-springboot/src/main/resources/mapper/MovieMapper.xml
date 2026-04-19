@@ -25,7 +25,7 @@
         SELECT *
         FROM movie
         ORDER BY CAST(popular AS SIGNED) DESC
-        LIMIT 1 OFFSET ${offset};
+        LIMIT 1 OFFSET #{offset};
     </select>
     <select id="findMovieByTag" resultType="com.example.douban.pojo.Movie">
         SELECT *
@@ -74,7 +74,7 @@
             AND region NOT LIKE CONCAT('%','英国','%')
         </if>
         ORDER BY CAST(popular AS SIGNED) DESC
-        LIMIT ${limit} OFFSET ${offset}
+        LIMIT #{limit} OFFSET #{offset}
     </select>
     <select id="countMovieByTag" resultType="int">
         SELECT COUNT(movieID) AS cnt
@@ -141,7 +141,7 @@
                region
         FROM movie
         WHERE name LIKE CONCAT('%', #{keyword}, '%')
-        LIMIT ${limit} OFFSET ${offset};
+        LIMIT #{limit} OFFSET #{offset};
     </select>
     <select id="countMovieByKeywords" resultType="int">
         SELECT count(*)

@@ -1,9 +1,14 @@
 <template>
   <div class="not-found-container">
-    <h1>404 NOT FOUND</h1>
-    <a-button @click="backward()">
-      <ArrowLeftOutlined/>
-    </a-button>
+    <div class="not-found-panel">
+      <div class="status-code">404</div>
+      <h1>页面走丢了</h1>
+      <p>当前地址没有对应的 MovieRec 页面。</p>
+      <a-button type="primary" class="back-button" @click="backward()">
+        <ArrowLeftOutlined/>
+        返回登录
+      </a-button>
+    </div>
   </div>
 </template>
 
@@ -25,20 +30,53 @@ export default {
 
 <style scoped>
 .not-found-container {
+  min-height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh; /* 使容器铺满整个视口高度 */
+  padding: 32px 16px;
+  background: var(--movie-header);
   text-align: center;
-  font-family: 'Arial', sans-serif;
+}
+
+.not-found-panel {
+  width: min(420px, 100%);
+  padding: 40px;
+  background: var(--movie-surface);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.status-code {
+  color: var(--movie-accent);
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 16px;
 }
 
 h1 {
-  font-size: 2em;
-  margin-bottom: 20px;
-  color: #333; /* 设置文本颜色 */
+  color: var(--movie-ink);
+  font-size: 28px;
+  margin: 0 0 10px;
 }
 
-/* 你可以在这里添加其他样式，如背景、链接样式等 */
+p {
+  color: var(--movie-muted);
+  margin: 0 0 28px;
+}
+
+.back-button {
+  height: 42px;
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
+  border-radius: var(--movie-radius);
+  padding: 0 24px;
+}
+
+.back-button:hover {
+  background: var(--movie-accent-dark) !important;
+  border-color: var(--movie-accent-dark) !important;
+}
 </style>

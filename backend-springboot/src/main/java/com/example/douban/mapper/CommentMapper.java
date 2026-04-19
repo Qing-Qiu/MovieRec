@@ -10,7 +10,7 @@ import java.util.ArrayList;
 @Mapper
 @Repository
 public interface CommentMapper {
-    ArrayList<Comment> findCommentByMovie(@Param("id") String id, @Param("limit") String limit, @Param("offset") String offset);
+    ArrayList<Comment> findCommentByMovie(@Param("id") String id, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countCommentByMovie(@Param("id") String id);
 

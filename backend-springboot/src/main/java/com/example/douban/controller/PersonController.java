@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Map;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:8081")
+@CrossOrigin(origins = {"http://localhost:8081", "http://localhost:8082"})
 @RequestMapping(value = "/person")
 public class PersonController {
     @Resource
@@ -31,8 +31,10 @@ public class PersonController {
     @PostMapping("/relevant")
     public ResponseEntity<ArrayList<Person>> handleRelevantPage(@RequestBody Map<String, String> personData) {
         try {
+            int limit = RequestParams.readBoundedInt(personData, "limit", 4, 1, 50);
+            int offset = RequestParams.readBoundedInt(personData, "offset", 0, 0, 100000);
             ArrayList<Person> persons = personService.findPersonByMovie(
-                    personData.get("id"), personData.get("limit"), personData.get("offset"));
+                    personData.get("id"), limit, offset);
             return ResponseEntity.ok(persons);
         } catch (Exception e) {
             e.printStackTrace();
@@ -53,8 +55,10 @@ public class PersonController {
     @PostMapping("/relevant2")
     public ResponseEntity<ArrayList<Movie>> handleRelevant2Page(@RequestBody Map<String, String> personData) {
         try {
+            int limit = RequestParams.readBoundedInt(personData, "limit", 4, 1, 50);
+            int offset = RequestParams.readBoundedInt(personData, "offset", 0, 0, 100000);
             ArrayList<Movie> movies = personService.findMovieByPerson(
-                    personData.get("id"), personData.get("limit"), personData.get("offset"));
+                    personData.get("id"), limit, offset);
             return ResponseEntity.ok(movies);
         } catch (Exception e) {
             e.printStackTrace();
@@ -75,8 +79,10 @@ public class PersonController {
     @PostMapping("/search")
     public ResponseEntity<ArrayList<Person>> handleSearchPage(@RequestBody Map<String, String> personData) {
         try {
+            int limit = RequestParams.readBoundedInt(personData, "limit", 8, 1, 50);
+            int offset = RequestParams.readBoundedInt(personData, "offset", 0, 0, 100000);
             ArrayList<Person> persons = personService.findPersonByKeywords(
-                    personData.get("keyword"), personData.get("limit"), personData.get("offset"));
+                    personData.get("keyword"), limit, offset);
             return ResponseEntity.ok(persons);
         } catch (Exception e) {
             e.printStackTrace();

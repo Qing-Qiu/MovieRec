@@ -4,7 +4,7 @@
       <a-col :xs="22" :sm="20" :md="16" :lg="12" :xl="10">
         <a-input-search
             v-model:value="formState.search"
-            placeholder="Search for movies, actors, directors..."
+            placeholder="搜索电影、影人、导演..."
             size="large"
             enter-button
             @search="submitForm"
@@ -169,6 +169,9 @@ export default {
       count2: 0,
       nickname: '',
       loading: false,
+      searchTimer: null,
+      personSearchController: null,
+      movieSearchController: null,
     };
   },
   beforeMount() {
@@ -207,7 +210,7 @@ export default {
         if (response.data) {
              for (let i = 0; i < Math.min(8, response.data.length); i++) {
                 let desc = response.data[i].genre || '';
-                if (desc.endsWith(',')) desc = desc.slice(0, -1);
+                desc = desc.replace(/[\s,，、]+$/g, '');
                 
                 this.recommendedImages.push({
                   title: response.data[i].name,
@@ -230,6 +233,7 @@ export default {
     },
 
     backward() {
+      this.abortSearchRequests();
       this.search = false;
       this.current1 = 1;
       this.offset1 = 0;
@@ -238,7 +242,14 @@ export default {
       this.formState.search = ''; 
     },
 
-    async submitForm() {
+    submitForm() {
+      if (this.searchTimer) {
+        clearTimeout(this.searchTimer);
+      }
+      this.searchTimer = setTimeout(() => this.runSearch(), 180);
+    },
+
+    async runSearch() {
       if(!this.formState.search.trim()) return;
       
       this.search = true;
@@ -252,50 +263,118 @@ export default {
     },
 
     async fetchData1() {
+       if (this.personSearchController) {
+        this.personSearchController.abort();
+      }
+      const controller = new AbortController();
+      this.personSearchController = controller;
+      const keyword = this.formState.search.trim();
        try {
-        const countRes = await axios.post('http://localhost:8080/person/count3', {keyword: this.formState.search});
+        const countRes = await axios.post('http://localhost:8080/person/count3', {keyword}, {signal: controller.signal});
         this.count1 = countRes.data;
         
         const searchRes = await axios.post('http://localhost:8080/person/search', 
-            {keyword: this.formState.search, limit: this.limit1, offset: this.offset1});
+            {keyword, limit: this.limit1, offset: this.offset1}, {signal: controller.signal});
         this.person_list = searchRes.data;
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        if (!this.isCanceled(e)) {
+          console.error(e);
+        }
+      } finally {
+        if (this.personSearchController === controller) {
+          this.personSearchController = null;
+        }
+      }
     },
 
     async fetchData2() {
+       if (this.movieSearchController) {
+        this.movieSearchController.abort();
+      }
+      const controller = new AbortController();
+      this.movieSearchController = controller;
+      const keyword = this.formState.search.trim();
        try {
-        const countRes = await axios.post('http://localhost:8080/movie/count2', {keyword: this.formState.search});
+        const countRes = await axios.post('http://localhost:8080/movie/count2', {keyword}, {signal: controller.signal});
         this.count2 = countRes.data;
         
         const searchRes = await axios.post('http://localhost:8080/movie/search', 
-            {keyword: this.formState.search, limit: this.limit2, offset: this.offset2});
+            {keyword, limit: this.limit2, offset: this.offset2}, {signal: controller.signal});
         this.movie_list = searchRes.data;
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        if (!this.isCanceled(e)) {
+          console.error(e);
+        }
+      } finally {
+        if (this.movieSearchController === controller) {
+          this.movieSearchController = null;
+        }
+      }
     },
+
+    abortSearchRequests() {
+      if (this.searchTimer) {
+        clearTimeout(this.searchTimer);
+        this.searchTimer = null;
+      }
+      if (this.personSearchController) {
+        this.personSearchController.abort();
+        this.personSearchController = null;
+      }
+      if (this.movieSearchController) {
+        this.movieSearchController.abort();
+        this.movieSearchController = null;
+      }
+    },
+
+    isCanceled(error) {
+      return axios.isCancel(error) || error.code === 'ERR_CANCELED';
+    },
+  },
+  beforeUnmount() {
+    this.abortSearchRequests();
   },
 }
 </script>
 
 <style scoped>
 .recommend-container {
-  padding: 24px;
+  padding: 8px 0 32px;
   max-width: 1400px;
   margin: 0 auto;
+  text-align: left;
 }
 
 .search-section {
-  margin-bottom: 40px;
-  margin-top: 20px;
+  margin: 8px 0 36px;
 }
 
-/* Deep selector to override Ant Design input styles */
 :deep(.custom-search .ant-input-group .ant-input) {
-  border-radius: 24px 0 0 24px;
+  height: 46px;
+  border-color: var(--movie-line);
+  border-radius: var(--movie-radius) 0 0 var(--movie-radius) !important;
   padding-left: 20px;
+  color: var(--movie-ink);
 }
+
 :deep(.custom-search .ant-input-group .ant-btn) {
-  border-radius: 0 24px 24px 0;
-  padding: 0 20px;
+  height: 46px;
+  min-width: 96px;
+  border-color: var(--movie-accent);
+  border-radius: 0 var(--movie-radius) var(--movie-radius) 0 !important;
+  background: var(--movie-accent);
+  padding: 0 22px;
+}
+
+:deep(.custom-search .ant-input-group .ant-btn:hover) {
+  border-color: var(--movie-accent-dark);
+  background: var(--movie-accent-dark);
+}
+
+:deep(.custom-search .ant-input:focus),
+:deep(.custom-search .ant-input-focused) {
+  border-color: var(--movie-accent);
+  box-shadow: 0 0 0 3px rgba(196, 59, 69, 0.12);
 }
 
 .section-header {
@@ -308,10 +387,11 @@ export default {
 .section-title {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--movie-ink);
   margin: 0;
   position: relative;
   padding-left: 16px;
+  letter-spacing: 0;
 }
 
 .section-title::before {
@@ -322,50 +402,70 @@ export default {
   transform: translateY(-50%);
   width: 4px;
   height: 24px;
-  background-color: #1890ff;
+  background-color: var(--movie-accent);
   border-radius: 2px;
 }
 
 .refresh-btn {
-  color: #666;
+  color: var(--movie-muted);
   font-size: 14px;
 }
+
 .refresh-btn:hover {
-  color: #1890ff;
+  color: var(--movie-accent);
+  background: rgba(196, 59, 69, 0.08);
 }
 
 .movie-card {
-  border-radius: 12px;
+  border-radius: var(--movie-radius);
   overflow: hidden;
-  transition: all 0.3s ease;
-  border: none;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+  border: 1px solid var(--movie-line);
+  background: var(--movie-surface);
+  box-shadow: var(--movie-shadow-sm);
   height: 100%;
 }
 
 .movie-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+  transform: translateY(-4px);
+  border-color: rgba(196, 59, 69, 0.32);
+  box-shadow: var(--movie-shadow-md);
+}
+
+:deep(.movie-card .ant-card-body) {
+  min-height: 92px;
+  padding: 14px 16px 16px;
+}
+
+:deep(.movie-card .ant-card-meta-title) {
+  color: var(--movie-ink);
+  font-weight: 650;
+  letter-spacing: 0;
+  margin-bottom: 6px !important;
+}
+
+:deep(.movie-card .ant-card-meta-description) {
+  min-height: 20px;
 }
 
 .image-wrapper {
-  height: 360px; /* Fixed height for consistency */
+  aspect-ratio: 2 / 3;
+  background: #e8edf2;
   overflow: hidden;
   position: relative;
 }
 
-/* Make sure inner image fills the wrapper */
 .image-wrapper :deep(img) {
-  transition: transform 0.5s ease;
+  display: block;
+  transition: transform 0.42s ease;
 }
 
 .movie-card:hover .image-wrapper :deep(img) {
-  transform: scale(1.05);
+  transform: scale(1.04);
 }
 
 .movie-genre {
-  color: #888;
+  color: var(--movie-muted);
   font-size: 13px;
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -374,7 +474,6 @@ export default {
   overflow: hidden;
 }
 
-/* Pagination Styling */
 .pagination-wrapper {
   margin-top: 32px;
   text-align: center;
@@ -382,16 +481,37 @@ export default {
 }
 
 .back-btn-wrapper {
-    margin-bottom: 20px;
+  margin-bottom: 20px;
+}
+
+.back-btn {
+  color: var(--movie-teal);
+  padding-left: 0;
+}
+
+.back-btn:hover {
+  color: var(--movie-accent);
 }
 
 .result-section {
-    margin-bottom: 40px;
+  margin-bottom: 40px;
 }
 
 .result-title {
-    font-size: 20px;
-    margin-bottom: 20px;
-    color: #444;
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: var(--movie-ink);
+  letter-spacing: 0;
+}
+
+@media (max-width: 576px) {
+  .recommend-container {
+    padding-bottom: 20px;
+  }
+
+  .section-header {
+    align-items: flex-start;
+    gap: 12px;
+  }
 }
 </style>

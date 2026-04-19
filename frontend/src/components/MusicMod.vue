@@ -11,12 +11,13 @@
 
       <!-- Search Section -->
       <a-row justify="center" class="search-section">
-        <a-col :xs="24" :sm="20" :md="16" :lg="12">
+        <a-col :xs="24" class="search-col">
           <a-input-search
             v-model:value="formState.search"
             placeholder="搜索歌曲、歌手..."
             enter-button="搜索"
             size="large"
+            :loading="searching"
             @search="submitForm"
             class="custom-search"
           >
@@ -43,7 +44,6 @@
                 <template #actions>
                   <a-button 
                     type="primary" 
-                    shape="round" 
                     size="middle"
                     class="play-btn"
                     @click="playSong(item.rid)"
@@ -97,6 +97,7 @@ let song_list = ref([]);
 let page_num = ref(1);
 let search_total = ref(0);
 let hasSearched = ref(false); // Track if a search has been performed
+const searching = ref(false);
 const counter = useCounterStore();
 
 const submitForm = async () => {
@@ -110,11 +111,6 @@ const submitForm = async () => {
   await fetchSongs();
 }
 
-const handlePageChange = async (page) => {
-  page_num.value = page;
-  await fetchSongs();
-}
-
 const changePage = async (delta) => {
   page_num.value += delta;
   if (page_num.value < 1) page_num.value = 1;
@@ -123,9 +119,10 @@ const changePage = async (delta) => {
 
 // Separate fetch logic for reuse
 const fetchSongs = async () => {
+  searching.value = true;
   try {
     const response = await axios.get(
-        'http://localhost:5000/search?key=' + formState.search + '&pn=' + page_num.value
+        'http://localhost:5000/search?key=' + encodeURIComponent(formState.search) + '&pn=' + page_num.value
     );
     
     if (response.data && response.data.list) {
@@ -141,6 +138,8 @@ const fetchSongs = async () => {
     message.error("搜索失败，请稍后重试");
     song_list.value = [];
     search_total.value = 0;
+  } finally {
+    searching.value = false;
   }
 }
 
@@ -182,7 +181,6 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   // Max attempts configuration
   const MAX_ATTEMPTS = 10;
   if (attempts >= MAX_ATTEMPTS) {
-    console.log(`Stopped retrying lyrics for ${rid} after ${MAX_ATTEMPTS} attempts`);
     return;
   }
 
@@ -194,7 +192,6 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
     if (lrcRes.data && lrcRes.data.length > 0) {
       // Success! Update only the lyrics in the store
-      console.log(`Lyrics found for ${rid} on attempt ${attempts + 1}`);
       counter.music_lrc = lrcRes.data;
     } else {
       // Decide base delay based on attempt count
@@ -207,7 +204,6 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
       const jitter = (Math.random() * 0.4 - 0.2) * baseDelay;
       const finalDelay = Math.max(100, Math.floor(baseDelay + jitter));
       
-      console.log(`Retry lyrics for ${rid} (Attempt ${attempts + 1}/${MAX_ATTEMPTS}), next in ${finalDelay}ms (jittered)`);
       setTimeout(() => fetchLyricsWithRetry(rid, attempts + 1), finalDelay);
     }
   } catch (error) {
@@ -225,7 +221,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 <style scoped>
 .music-container {
   min-height: calc(100vh - 64px);
-  padding: 40px 24px;
+  padding: 28px 0 40px;
 }
 
 .music-content {
@@ -241,7 +237,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 .page-title {
   font-size: 32px;
   font-weight: 700;
-  color: #1f1f1f;
+  color: var(--movie-ink);
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -250,51 +246,99 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 }
 
 .title-icon {
-  color: #1890ff;
+  color: var(--movie-accent);
 }
 
 .page-subtitle {
-  color: #8c8c8c;
+  color: var(--movie-muted);
   font-size: 16px;
 }
 
 .search-section {
-  margin-bottom: 40px;
+  width: 100%;
+  margin: 0 auto 40px;
 }
 
-/* Custom Search Input Styles */
-:deep(.custom-search .ant-input) {
-  border-radius: 24px 0 0 24px !important;
-  padding-left: 20px;
+.search-col {
+  flex: 0 1 940px !important;
+  max-width: min(940px, 100%) !important;
+  margin: 0 auto;
 }
 
-:deep(.custom-search .ant-btn) {
-  border-radius: 0 24px 24px 0 !important;
-  padding: 0 40px;
+:deep(.custom-search .ant-input-group) {
+  display: flex;
+  align-items: stretch;
+}
+
+:deep(.custom-search .ant-input-affix-wrapper) {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  border-color: var(--movie-line);
+  border-radius: var(--movie-radius) 0 0 var(--movie-radius) !important;
+  padding: 0 18px !important;
+  box-shadow: none;
+}
+
+:deep(.custom-search .ant-input-affix-wrapper:hover) {
+  border-color: rgba(196, 59, 69, 0.45);
+}
+
+:deep(.custom-search .ant-input-affix-wrapper-focused) {
+  border-color: var(--movie-accent);
+  box-shadow: 0 0 0 3px rgba(196, 59, 69, 0.12);
+}
+
+:deep(.custom-search .ant-input-affix-wrapper .ant-input) {
+  height: 54px;
+  padding: 0 0 0 12px !important;
+  background: transparent;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+:deep(.custom-search .ant-input-group-addon) {
+  display: flex;
+  background: transparent;
+}
+
+:deep(.custom-search .ant-input-search-button) {
+  height: 56px;
+  min-width: 128px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 0 var(--movie-radius) var(--movie-radius) 0 !important;
+  padding: 0 36px;
   font-size: 16px;
-  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
-  border: none;
-  box-shadow: 0 4px 10px rgba(24, 144, 255, 0.3);
+  background: var(--movie-accent);
+  border-color: var(--movie-accent);
+  box-shadow: 0 12px 22px rgba(196, 59, 69, 0.18);
 }
 
-:deep(.custom-search .ant-btn:hover) {
-  background: linear-gradient(135deg, #40a9ff 0%, #5cdbd3 100%);
-  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.4);
+:deep(.custom-search .ant-input-search-button:hover) {
+  background: var(--movie-accent-dark);
+  border-color: var(--movie-accent-dark);
+  box-shadow: 0 14px 26px rgba(196, 59, 69, 0.22);
 }
 
 .results-card {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+  background: var(--movie-surface);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  box-shadow: var(--movie-shadow-sm);
   padding: 12px;
 }
 
 .song-item {
   padding: 16px 24px;
-  transition: all 0.3s ease;
-  border-radius: 12px;
+  transition: background 0.2s ease, transform 0.2s ease;
+  border-radius: var(--movie-radius);
   margin-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--movie-line);
 }
 
 .song-item:last-child {
@@ -302,7 +346,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 }
 
 .song-item:hover {
-  background-color: #f6ffed;
+  background-color: rgba(21, 127, 131, 0.08);
   transform: translateX(5px);
 }
 
@@ -315,7 +359,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 .song-index {
   font-size: 18px;
   font-weight: 600;
-  color: #bfbfbf;
+  color: var(--movie-muted);
   width: 30px;
   text-align: center;
 }
@@ -330,25 +374,26 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 .song-name {
   font-size: 16px;
   font-weight: 500;
-  color: #333;
+  color: var(--movie-ink);
   margin-bottom: 4px;
 }
 
 .song-artist {
   font-size: 13px;
-  color: #888;
+  color: var(--movie-muted);
 }
 
 .play-btn {
-  background: #52c41a;
-  border-color: #52c41a;
-  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
+  background: var(--movie-teal);
+  border-color: var(--movie-teal);
+  border-radius: var(--movie-radius);
+  box-shadow: 0 8px 16px rgba(21, 127, 131, 0.18);
 }
 
 .play-btn:hover {
-  background: #73d13d;
-  border-color: #73d13d;
-  transform: scale(1.05);
+  background: #0f6f73 !important;
+  border-color: #0f6f73 !important;
+  transform: translateY(-1px);
 }
 
 .pagination-wrapper {
@@ -360,12 +405,26 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 .initial-state {
   text-align: center;
   padding: 80px 0;
-  color: #ccc;
+  color: var(--movie-muted);
 }
 
 .bg-icon {
   font-size: 64px;
   margin-bottom: 16px;
-  color: #e6f7ff;
+  color: rgba(196, 59, 69, 0.18);
+}
+
+@media (max-width: 640px) {
+  .music-container {
+    padding-top: 20px;
+  }
+
+  .page-title {
+    font-size: 26px;
+  }
+
+  .song-item {
+    padding: 14px 12px;
+  }
 }
 </style>

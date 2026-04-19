@@ -3,5 +3,6 @@ module.exports = defineConfig({
     transpileDependencies: true,
     devServer: {
         port: 8081,
+        historyApiFallback: true,
     }
 })

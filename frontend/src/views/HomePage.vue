@@ -168,10 +168,9 @@ import MusicPlayer from "@/components/MusicPlayer";
 </script>
 
 <style scoped>
-/* Layout Background */
 .site-content {
-  background: #f5f7fa;
-  margin-top: 64px; /* Height of header */
+  background: var(--movie-bg);
+  margin-top: 64px;
   min-height: calc(100vh - 64px);
 }
 
@@ -179,16 +178,17 @@ import MusicPlayer from "@/components/MusicPlayer";
   max-width: 1400px;
   margin: 0 auto;
   padding: 24px;
+  text-align: left;
 }
 
-/* Header Styles */
 .header {
   position: fixed;
   z-index: 100;
   width: 100%;
   padding: 0;
-  background: #001529; /* Dark theme for header to match movie vibe */
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  background: var(--movie-header);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 22px rgba(10, 14, 20, 0.18);
   height: 64px;
 }
 
@@ -199,34 +199,34 @@ import MusicPlayer from "@/components/MusicPlayer";
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 24px;
   padding: 0 24px;
 }
 
-/* Logo */
 .logo-container {
   display: flex;
   align-items: center;
+  gap: 12px;
   cursor: pointer;
-  margin-right: 40px;
+  margin-right: 12px;
   flex-shrink: 0;
 }
 
 .logo-img {
   height: 36px;
-  margin-right: 12px;
+  width: 36px;
 }
 
 .app-title {
   color: #fff;
   font-size: 1.2rem;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: 0;
 }
 
-/* Top Menu Override */
 .top-menu {
   flex: 1;
+  min-width: 0;
   border-bottom: none;
   background: transparent;
   line-height: 64px;
@@ -238,24 +238,28 @@ import MusicPlayer from "@/components/MusicPlayer";
 
 :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-item), 
 :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-submenu) {
-  padding: 0 20px;
+  padding: 0 18px;
   font-size: 15px;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-item:hover),
 :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-submenu:hover) {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.09);
 }
 
 :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-item-selected) {
-  background-color: #1890ff;
+  background-color: var(--movie-accent);
 }
 
-/* Header Right */
+:deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-submenu-selected) {
+  background-color: rgba(196, 59, 69, 0.18);
+}
+
 .header-right {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 18px;
   flex-shrink: 0;
 }
 
@@ -268,14 +272,16 @@ import MusicPlayer from "@/components/MusicPlayer";
   display: flex;
   align-items: center;
   cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 20px;
-  transition: background 0.3s;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--movie-radius);
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .user-profile:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .username {
@@ -287,35 +293,35 @@ import MusicPlayer from "@/components/MusicPlayer";
 
 .user-avatar {
   border: 2px solid rgba(255, 255, 255, 0.2);
-  transition: border-color 0.3s;
+  transition: border-color 0.2s ease;
 }
 
 .user-profile:hover .user-avatar {
   border-color: #fff;
 }
 
-/* User Dropdown */
 .user-dropdown-menu {
   padding: 8px;
   min-width: 160px;
+  border-radius: var(--movie-radius);
 }
 
 .user-info-header {
   padding: 8px 12px;
-  border-radius: 4px;
-  background-color: #f9f9f9;
+  border-radius: var(--movie-radius);
+  background-color: var(--movie-surface-soft);
   margin-bottom: 4px;
   text-align: center;
 }
 
 .user-name-display {
   font-weight: 600;
-  color: #333;
+  color: var(--movie-ink);
 }
 
 .user-role-display {
   font-size: 12px;
-  color: #888;
+  color: var(--movie-muted);
 }
 
 @media (max-width: 992px) {
@@ -324,12 +330,27 @@ import MusicPlayer from "@/components/MusicPlayer";
   }
   
   .app-title {
-    display: none; /* Hide text on smaller screens if needed */
+    display: none;
   }
   
   :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-item), 
   :deep(.ant-menu-dark.ant-menu-horizontal > .ant-menu-submenu) {
     padding: 0 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .content-wrapper {
+    padding: 16px;
+  }
+
+  .music-player-wrapper,
+  .username {
+    display: none;
+  }
+
+  .header-content {
+    gap: 12px;
   }
 }
 </style>
