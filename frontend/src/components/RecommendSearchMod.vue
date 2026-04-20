@@ -130,6 +130,8 @@ const imgWrapper = defineComponent({
       src: props.src,
       alt: props.alt,
       referrerpolicy: "no-referrer",
+      loading: "lazy",
+      decoding: "async",
       style: { width: '100%', height: '100%', objectFit: 'cover' },
       onError: (e) => {
         const target = e.target;

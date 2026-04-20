@@ -25,6 +25,10 @@ public class MovieService {
         return movieMapper.findRandomMovie(offset);
     }
 
+    public ArrayList<Movie> findPopularMovies(Integer limit) {
+        return movieMapper.findPopularMovies(limit);
+    }
+
     public ArrayList<Movie> findMovieByTag(String tag1, String tag2, String tag3, Integer limit, Integer offset) {
         return movieMapper.findMovieByTag(tag1, tag2, tag3, limit, offset);
     }

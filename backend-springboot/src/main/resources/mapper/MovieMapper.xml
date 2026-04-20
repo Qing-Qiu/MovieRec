@@ -27,6 +27,17 @@
         ORDER BY CAST(popular AS SIGNED) DESC
         LIMIT 1 OFFSET #{offset};
     </select>
+    <select id="findPopularMovies" resultType="com.example.douban.pojo.Movie">
+        SELECT movieID,
+               name,
+               genre,
+               rate / 2 AS rate,
+               popular,
+               img
+        FROM movie
+        ORDER BY CAST(popular AS SIGNED) DESC
+        LIMIT #{limit}
+    </select>
     <select id="findMovieByTag" resultType="com.example.douban.pojo.Movie">
         SELECT *
         FROM movie
@@ -171,18 +182,10 @@
     <select id="findMoviesByIds" resultType="com.example.douban.pojo.Movie">
         SELECT movieID,
         name,
-        director,
-        actor,
         genre,
-        tag,
-        summary,
         rate / 2 as rate,
         popular,
-        year,
-        ratingsum,
-        img,
-        tags,
-        region
+        img
         FROM movie
         WHERE movieID IN
         <foreach item="item" index="index" collection="ids" open="(" separator="," close=")">

@@ -15,6 +15,8 @@ public interface MovieMapper {
 
     Movie findRandomMovie(@Param("offset") Integer offset);
 
+    ArrayList<Movie> findPopularMovies(@Param("limit") Integer limit);
+
     ArrayList<Movie> findMovieByTag(@Param("tag1") String tag1, @Param("tag2") String tag2, @Param("tag3") String tag3, @Param("limit") Integer limit, @Param("offset") Integer offset);
 
     Integer countMovieByTag(@Param("tag1") String tag1, @Param("tag2") String tag2, @Param("tag3") String tag3);

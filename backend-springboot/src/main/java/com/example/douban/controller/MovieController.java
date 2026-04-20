@@ -3,6 +3,7 @@ package com.example.douban.controller;
 import com.example.douban.pojo.Movie;
 import com.example.douban.service.MovieService;
 import com.example.douban.service.RecommendationService;
+import jakarta.annotation.PostConstruct;
 import org.apache.mahout.cf.taste.recommender.RecommendedItem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,13 +18,29 @@ import java.util.stream.Collectors;
 @RequestMapping(value = "/movie")
 public class MovieController {
 
+    private static final int RECOMMENDATION_SIZE = 8;
+    private static final int PERSONALIZED_SIZE = 4;
+    private static final int POPULAR_CANDIDATE_LIMIT = 600;
+    private static final long POPULAR_CACHE_MILLIS = 5 * 60 * 1000L;
+
     private final MovieService movieService;
     private final RecommendationService recommendationService;
+    private volatile List<Movie> popularFallbackCache = Collections.emptyList();
+    private volatile long popularFallbackCacheExpiresAt = 0L;
 
     @Autowired
     public MovieController(MovieService movieService, RecommendationService recommendationService) {
         this.movieService = movieService;
         this.recommendationService = recommendationService;
+    }
+
+    @PostConstruct
+    public void warmPopularFallbackCache() {
+        try {
+            getPopularFallbackCandidates();
+        } catch (Exception e) {
+            System.err.println("Failed to warm popular movie cache: " + e.getMessage());
+        }
     }
 
     @PostMapping("/recommend")
@@ -69,19 +86,27 @@ public class MovieController {
                     .filter(Objects::nonNull)
                     .sorted(this::compareMovieQuality)
                     .forEach(movie -> {
-                        if (finalMovies.size() < 4) {
+                        if (finalMovies.size() < PERSONALIZED_SIZE) {
                             addMovieIfNew(finalMovies, selectedMovieIds, movie);
                         }
                     });
 
-            // 3. Fill the rest with weighted popular movies.
-            int totalNeeded = 8;
-            int totalParamMovies = movieService.countMovieByKeywords("");
+            // 3. Fill the rest from a cached popular candidate pool.
+            List<Movie> popularMovies = getPopularFallbackCandidates();
             int attempts = 0;
-            while (finalMovies.size() < totalNeeded && totalParamMovies > 0 && attempts < totalNeeded * 10) {
-                Movie randomMovie = movieService.findRandomMovie(pickWeightedPopularOffset(totalParamMovies));
+            while (finalMovies.size() < RECOMMENDATION_SIZE
+                    && !popularMovies.isEmpty()
+                    && attempts < RECOMMENDATION_SIZE * 12) {
+                Movie randomMovie = popularMovies.get(pickWeightedPopularOffset(popularMovies.size()));
                 addMovieIfNew(finalMovies, selectedMovieIds, randomMovie);
                 attempts++;
+            }
+
+            for (Movie movie : popularMovies) {
+                if (finalMovies.size() >= RECOMMENDATION_SIZE) {
+                    break;
+                }
+                addMovieIfNew(finalMovies, selectedMovieIds, movie);
             }
 
             return ResponseEntity.ok(finalMovies);
@@ -161,16 +186,36 @@ public class MovieController {
         return true;
     }
 
+    private List<Movie> getPopularFallbackCandidates() {
+        long now = System.currentTimeMillis();
+        List<Movie> cached = popularFallbackCache;
+        if (now < popularFallbackCacheExpiresAt && cached != null && !cached.isEmpty()) {
+            return cached;
+        }
+
+        synchronized (this) {
+            cached = popularFallbackCache;
+            if (now < popularFallbackCacheExpiresAt && cached != null && !cached.isEmpty()) {
+                return cached;
+            }
+
+            ArrayList<Movie> refreshed = movieService.findPopularMovies(POPULAR_CANDIDATE_LIMIT);
+            popularFallbackCache = refreshed == null ? Collections.emptyList() : new ArrayList<>(refreshed);
+            popularFallbackCacheExpiresAt = System.currentTimeMillis() + POPULAR_CACHE_MILLIS;
+            return popularFallbackCache;
+        }
+    }
+
     private int pickWeightedPopularOffset(int totalMovies) {
-        int topCount = Math.max(1, (int) Math.ceil(totalMovies * 0.30));
-        int middleCount = Math.max(1, (int) Math.ceil(totalMovies * 0.50));
+        int topCount = Math.max(1, (int) Math.ceil(totalMovies * 0.20));
+        int middleCount = Math.max(1, (int) Math.ceil(totalMovies * 0.45));
         int tailStart = Math.min(totalMovies - 1, topCount + middleCount);
         int bucket = ThreadLocalRandom.current().nextInt(100);
 
-        if (bucket < 70) {
+        if (bucket < 45) {
             return ThreadLocalRandom.current().nextInt(topCount);
         }
-        if (bucket < 95 && tailStart > topCount) {
+        if (bucket < 80 && tailStart > topCount) {
             return topCount + ThreadLocalRandom.current().nextInt(tailStart - topCount);
         }
         return tailStart + ThreadLocalRandom.current().nextInt(Math.max(1, totalMovies - tailStart));

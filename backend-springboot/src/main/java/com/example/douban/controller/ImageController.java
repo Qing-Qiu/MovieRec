@@ -22,22 +22,28 @@ public class ImageController {
             URL url = new URL(imageUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
+            connection.setConnectTimeout(3000);
+            connection.setReadTimeout(5000);
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             connection.setRequestProperty("Referer", "https://movie.douban.com/");
             connection.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
 
             connection.connect();
-            InputStream inputStream = connection.getInputStream();
-            response.setContentType(MediaType.IMAGE_JPEG_VALUE); // Default to JPEG
-            OutputStream outputStream = response.getOutputStream();
+            String contentType = connection.getContentType();
+            response.setContentType(contentType != null && contentType.startsWith("image/")
+                    ? contentType
+                    : MediaType.IMAGE_JPEG_VALUE);
+            response.setHeader("Cache-Control", "public, max-age=86400, immutable");
 
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
+            try (InputStream inputStream = connection.getInputStream();
+                 OutputStream outputStream = response.getOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                outputStream.flush();
             }
-            outputStream.flush();
-            inputStream.close();
         } catch (Exception e) {
             e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
