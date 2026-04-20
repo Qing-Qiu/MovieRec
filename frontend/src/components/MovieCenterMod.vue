@@ -53,54 +53,76 @@
     <a-divider style="margin: 24px 0" />
 
     <div class="movie-list-section">
-      <a-row :gutter="[24, 24]">
-        <!-- Loading State -->
-        <template v-if="loading">
-          <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="i in 8" :key="i">
-            <SkeletonCard />
-          </a-col>
-        </template>
-
-        <!-- Data State -->
-        <template v-else>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="(item, itemIndex) in movie_list" :key="itemIndex">
-            <a-card
-                hoverable
-                class="movie-card"
-                @click="watchMovieDetail(item.id)"
+      <div class="movie-list-header" v-if="count > 0 && !loading">
+        <div class="paged-title-line">
+          <span>电影列表</span>
+          <span class="page-center-status" v-if="totalPages > 1">
+            <button
+                type="button"
+                class="page-nav-button"
+                :disabled="current1 <= 1"
+                aria-label="上一页"
+                @click="goPage(current1 - 1)"
             >
-              <template #cover>
-                <div class="image-wrapper">
-                  <imgWrapper 
-                    :src="'http://localhost:8080/image?url=' + item.image" 
-                    :alt="item.title"
-                  />
-                </div>
-              </template>
-              <a-card-meta :title="item.title">
-                <template #description>
-                  <span class="movie-genre">{{ item.description }}</span>
-                </template>
-              </a-card-meta>
-            </a-card>
-          </a-col>
-        </template>
-      </a-row>
-      
-      <div v-if="!loading && movie_list.length === 0" class="empty-state">
-        <a-empty description="暂无相关电影" />
+              ‹
+            </button>
+            <span class="page-index">
+              <strong>{{ current1 }}</strong>
+              <span>/ {{ totalPages }}</span>
+            </span>
+            <button
+                type="button"
+                class="page-nav-button"
+                :disabled="current1 >= totalPages"
+                aria-label="下一页"
+                @click="goPage(current1 + 1)"
+            >
+              ›
+            </button>
+          </span>
+          <span class="section-count">共 {{ count }} 部</span>
+        </div>
       </div>
 
-      <div class="pagination-wrapper" v-if="count > 0 && !loading">
-         <a-pagination 
-            v-model:current="current1" 
-            show-quick-jumper 
-            :total="count"
-            :default-page-size="8" 
-            :show-size-changer="false" 
-            :show-total="total => `共 ${total} 条`"
-            @change="onChange"
-         />
+      <div class="paged-stage movie-grid-stage">
+        <a-row :gutter="[24, 24]" class="movie-grid-row">
+          <!-- Loading State -->
+          <template v-if="loading">
+            <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="i in 8" :key="i">
+              <SkeletonCard />
+            </a-col>
+          </template>
+
+          <!-- Data State -->
+          <template v-else>
+            <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="(item, itemIndex) in movie_list" :key="itemIndex">
+              <a-card
+                  hoverable
+                  class="movie-card"
+                  @click="watchMovieDetail(item.id)"
+              >
+                <template #cover>
+                  <div class="image-wrapper">
+                    <imgWrapper
+                      :src="item.image"
+                      :alt="item.title"
+                    />
+                  </div>
+                </template>
+                <a-card-meta :title="item.title">
+                  <template #description>
+                    <span class="movie-genre">{{ item.description }}</span>
+                  </template>
+                </a-card-meta>
+              </a-card>
+            </a-col>
+          </template>
+        </a-row>
+
+      </div>
+
+      <div v-if="!loading && movie_list.length === 0" class="empty-state">
+        <a-empty description="暂无相关电影" />
       </div>
     </div>
   </div>
@@ -116,16 +138,29 @@ import defaultPoster from '@/assets/default_movie_poster.svg';
 const imgWrapper = defineComponent({
   props: ['src', 'alt'],
   setup(props) {
+    const proxySrc = (src) => src
+      ? `http://localhost:8080/image?url=${encodeURIComponent(src)}`
+      : defaultPoster;
+
     return () => h('img', {
-      src: props.src,
+      src: proxySrc(props.src),
       alt: props.alt,
+      'data-direct-src': props.src || '',
+      'data-fallback-step': 'proxy',
       referrerpolicy: "no-referrer",
       loading: "lazy",
       decoding: "async",
       style: { width: '100%', height: '100%', objectFit: 'cover' },
       onError: (e) => {
         const target = e.target;
+        const directSrc = target.dataset.directSrc;
+        if (target.dataset.fallbackStep === 'proxy' && directSrc) {
+          target.dataset.fallbackStep = 'direct';
+          target.src = directSrc;
+          return;
+        }
         if (target.src !== defaultPoster) {
+          target.dataset.fallbackStep = 'default';
           target.src = defaultPoster;
         }
       }
@@ -206,6 +241,11 @@ export default {
   },
   beforeMount() {
     this.fetchData();
+  },
+  computed: {
+    totalPages() {
+      return Math.max(1, Math.ceil(this.count / 8));
+    }
   },
   methods: {
     async fetchData() {
@@ -308,9 +348,14 @@ export default {
       this.fetchData();
     },
 
+    goPage(page) {
+      const nextPage = Math.min(Math.max(page, 1), this.totalPages);
+      if (nextPage === this.current1) return;
+      this.current1 = nextPage;
+      this.onChange();
+    },
+
     onChange() {
-      // this.limit = 8;
-      // this.offset = (this.current1 - 1) * 8;
       this.fetchData();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -391,6 +436,105 @@ export default {
   min-height: 400px;
 }
 
+.movie-list-header {
+  margin-bottom: 18px;
+}
+
+.paged-title-line {
+  position: relative;
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--movie-ink);
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.page-center-status {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  color: var(--movie-muted);
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.page-index {
+  min-width: 54px;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+}
+
+.page-center-status strong {
+  color: var(--movie-accent);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.page-nav-button {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(101, 112, 124, 0.74);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.page-nav-button:hover,
+.page-nav-button:focus-visible {
+  color: var(--movie-accent);
+  background: rgba(196, 59, 69, 0.07);
+  border-color: transparent;
+  outline: none;
+}
+
+.page-nav-button:disabled {
+  color: rgba(184, 192, 200, 0.68);
+  background: transparent;
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.section-count {
+  padding: 3px 9px;
+  color: var(--movie-muted);
+  background: var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.paged-stage {
+  position: relative;
+}
+
+.movie-grid-stage {
+  padding: 0;
+}
+
+.movie-grid-row {
+  min-height: 1px;
+}
+
 .movie-card {
   border-radius: var(--movie-radius);
   overflow: hidden;
@@ -449,12 +593,6 @@ export default {
   overflow: hidden;
 }
 
-.pagination-wrapper {
-  margin-top: 32px;
-  text-align: center;
-  padding-bottom: 24px;
-}
-
 .empty-state {
   padding: 60px 0;
   text-align: center;
@@ -472,6 +610,26 @@ export default {
 
   .filter-label {
     margin-top: 0;
+  }
+
+  .movie-list-header {
+    margin-bottom: 14px;
+  }
+
+  .paged-title-line {
+    flex-wrap: wrap;
+  }
+
+  .page-center-status {
+    position: static;
+    width: 100%;
+    justify-content: center;
+    order: 3;
+    transform: none;
+  }
+
+  .movie-grid-stage {
+    padding: 0;
   }
 }
 </style>

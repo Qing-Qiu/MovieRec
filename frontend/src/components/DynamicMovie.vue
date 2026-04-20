@@ -3,7 +3,7 @@
     <a-card class="movie-hero-card" :bordered="false">
       <div class="hero-content">
         <div class="poster-wrapper">
-          <img :src="'http://localhost:8080/image?url=' + this.movie_content.img" :alt="this.movie_content.name" referrerpolicy="no-referrer" class="movie-poster" @error="handleImageError"/>
+          <img :src="imageProxyUrl(this.movie_content.img)" :data-direct-src="this.movie_content.img || ''" :alt="this.movie_content.name" referrerpolicy="no-referrer" class="movie-poster" @error="handleImageError"/>
         </div>
         <div class="info-wrapper">
           <div class="detail-kicker">电影详情</div>
@@ -47,16 +47,17 @@
               <span class="info-value">{{ formatGenre(this.movie_content.genre || this.movie_content.tag) }}</span>
             </div>
           </div>
-        </div>
-      </div>
-    </a-card>
 
-    <a-card class="section-card summary-card" title="剧情简介" :bordered="false">
-      <div class="summary-panel">
-        <div class="summary-rule"></div>
-        <a-typography-paragraph :content="this.movie_content.summary || '暂无剧情简介。'"
-                                :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
-                                class="summary-text"/>
+          <div class="hero-summary">
+            <div class="summary-heading">剧情简介</div>
+            <div class="summary-panel">
+              <div class="summary-rule"></div>
+              <a-typography-paragraph :content="this.movie_content.summary || '暂无剧情简介。'"
+                                      :ellipsis="ellipsis ? { rows: 4, expandable: true, symbol: '展开全部' } : false"
+                                      class="summary-text"/>
+            </div>
+          </div>
+        </div>
       </div>
     </a-card>
 
@@ -65,25 +66,34 @@
         <div class="paged-title-line">
           <span>演职员表</span>
           <span class="page-center-status" v-if="castTotalPages > 1">
-            <strong>{{ current1 }}</strong>
-            <span>/ {{ castTotalPages }}</span>
+            <button
+                type="button"
+                class="page-nav-button"
+                :disabled="current1 <= 1"
+                aria-label="上一页"
+                @click="goCastPage(current1 - 1)"
+            >
+              ‹
+            </button>
+            <span class="page-index">
+              <strong>{{ current1 }}</strong>
+              <span>/ {{ castTotalPages }}</span>
+            </span>
+            <button
+                type="button"
+                class="page-nav-button"
+                :disabled="current1 >= castTotalPages"
+                aria-label="下一页"
+                @click="goCastPage(current1 + 1)"
+            >
+              ›
+            </button>
           </span>
           <span class="section-count">共 {{ count1 }} 位</span>
         </div>
       </template>
 
       <div class="paged-stage">
-        <button
-            v-if="castTotalPages > 1"
-            type="button"
-            class="side-page-button side-page-left"
-            :disabled="current1 <= 1"
-            aria-label="上一页"
-            @click="goCastPage(current1 - 1)"
-        >
-          ‹
-        </button>
-
         <div class="cast-grid" v-if="person_list.length">
           <button
               v-for="(item, itemIndex) in person_list"
@@ -93,7 +103,7 @@
               @click="watchPersonDetail(item.personID)"
           >
             <span class="cast-photo">
-               <img :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
+               <img :src="imageProxyUrl(item.img)" :data-direct-src="item.img || ''" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
             </span>
             <span class="cast-meta">
               <span class="cast-role">{{ item.role || '演职员' }}</span>
@@ -103,16 +113,6 @@
         </div>
         <a-empty v-else description="暂无演职员资料" class="empty-state"/>
 
-        <button
-            v-if="castTotalPages > 1"
-            type="button"
-            class="side-page-button side-page-right"
-            :disabled="current1 >= castTotalPages"
-            aria-label="下一页"
-            @click="goCastPage(current1 + 1)"
-        >
-          ›
-        </button>
       </div>
     </a-card>
 
@@ -239,9 +239,19 @@ export default {
     },
   },
   methods: {
+    imageProxyUrl(src) {
+      return src ? `http://localhost:8080/image?url=${encodeURIComponent(src)}` : defaultPoster;
+    },
     handleImageError(e) {
       const target = e.target;
+      const directSrc = target.dataset.directSrc;
+      if (target.dataset.fallbackStep !== 'direct' && directSrc) {
+        target.dataset.fallbackStep = 'direct';
+        target.src = directSrc;
+        return;
+      }
       if (target.src !== defaultPoster) {
+        target.dataset.fallbackStep = 'default';
         target.src = defaultPoster;
       }
     },
@@ -612,18 +622,26 @@ import UserImage from '@/assets/meow.jpg';
   color: var(--movie-gold);
 }
 
-.summary-card :deep(.ant-card-body) {
-  padding-top: 22px;
+.hero-summary {
+  margin-top: 20px;
+}
+
+.summary-heading {
+  margin-bottom: 10px;
+  color: var(--movie-ink);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .summary-panel {
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr);
-  gap: 18px;
-  padding: 20px 22px;
+  gap: 16px;
+  padding: 16px 18px;
   background:
       linear-gradient(135deg, rgba(196, 59, 69, 0.06), rgba(21, 127, 131, 0.05)),
-      var(--movie-surface-soft);
+      rgba(255, 255, 255, 0.62);
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
 }
@@ -750,11 +768,22 @@ import UserImage from '@/assets/meow.jpg';
   left: 50%;
   transform: translateX(-50%);
   display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
   color: var(--movie-muted);
+  background: transparent;
+  border: 0;
   font-size: 13px;
   font-weight: 600;
+}
+
+.page-index {
+  min-width: 54px;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
 }
 
 .page-center-status strong {
@@ -763,57 +792,41 @@ import UserImage from '@/assets/meow.jpg';
   font-weight: 800;
 }
 
-.paged-stage {
-  position: relative;
-  min-height: 124px;
-  padding: 0 52px;
-}
-
-.side-page-button {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 2;
-  width: 30px;
-  height: auto;
-  min-height: 124px;
+.page-nav-button {
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(101, 112, 124, 0.72);
-  background: rgba(248, 250, 252, 0.72);
-  border: 1px solid rgba(223, 229, 235, 0.82);
-  border-radius: var(--movie-radius);
+  color: rgba(101, 112, 124, 0.74);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
-  box-shadow: none;
-  transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-.side-page-left {
-  left: 0;
-}
-
-.side-page-right {
-  right: 0;
-}
-
-.side-page-button:hover,
-.side-page-button:focus-visible {
+.page-nav-button:hover,
+.page-nav-button:focus-visible {
   color: var(--movie-accent);
-  border-color: rgba(196, 59, 69, 0.34);
-  background: #fff;
-  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.07);
+  background: rgba(196, 59, 69, 0.07);
+  border-color: transparent;
   outline: none;
 }
 
-.side-page-button:disabled {
-  color: rgba(184, 192, 200, 0.62);
-  background: rgba(248, 250, 252, 0.5);
-  border-color: rgba(223, 229, 235, 0.62);
-  box-shadow: none;
+.page-nav-button:disabled {
+  color: rgba(184, 192, 200, 0.68);
+  background: transparent;
+  border-color: transparent;
   cursor: not-allowed;
+}
+
+.paged-stage {
+  position: relative;
+  min-height: 124px;
+  padding: 0;
 }
 
 .comments-card :deep(.ant-card-body) {
@@ -1039,11 +1052,7 @@ import UserImage from '@/assets/meow.jpg';
   }
 
   .paged-stage {
-    padding: 0 42px;
-  }
-
-  .side-page-button {
-    width: 28px;
+    padding: 0;
   }
 
   .cast-grid {
@@ -1067,7 +1076,7 @@ import UserImage from '@/assets/meow.jpg';
   }
 
   .paged-stage {
-    padding: 0 38px;
+    padding: 0;
   }
 
   .summary-panel {

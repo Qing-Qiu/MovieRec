@@ -43,8 +43,8 @@
                 <template #cover>
                   <div class="image-wrapper">
                     <imgWrapper 
-                      :src="'http://localhost:8080/image?url=' + item.image" 
-                      :alt="item.title" 
+                      :src="item.image"
+                      :alt="item.title"
                     />
                   </div>
                 </template>
@@ -75,7 +75,7 @@
               <a-card hoverable class="movie-card" @click="watchPersonDetail(item.personID)">
                  <template #cover>
                   <div class="image-wrapper">
-                     <imgWrapper :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" />
+                     <imgWrapper :src="item.img" :alt="item.name" />
                   </div>
                 </template>
                 <a-card-meta :title="item.name" :description="item.role"/>
@@ -97,7 +97,7 @@
               <a-card hoverable class="movie-card" @click="watchMovieDetail(item.movieID)">
                 <template #cover>
                   <div class="image-wrapper">
-                    <imgWrapper :src="'http://localhost:8080/image?url=' + item.img" :alt="item.name" />
+                    <imgWrapper :src="item.img" :alt="item.name" />
                   </div>
                  </template>
                 <a-card-meta :title="item.name" :description="item.role||item.year"/>
@@ -126,16 +126,29 @@ import defaultPoster from '@/assets/default_movie_poster.svg';
 const imgWrapper = defineComponent({
   props: ['src', 'alt'],
   setup(props) {
+    const proxySrc = (src) => src
+      ? `http://localhost:8080/image?url=${encodeURIComponent(src)}`
+      : defaultPoster;
+
     return () => h('img', {
-      src: props.src,
+      src: proxySrc(props.src),
       alt: props.alt,
+      'data-direct-src': props.src || '',
+      'data-fallback-step': 'proxy',
       referrerpolicy: "no-referrer",
       loading: "lazy",
       decoding: "async",
       style: { width: '100%', height: '100%', objectFit: 'cover' },
       onError: (e) => {
         const target = e.target;
+        const directSrc = target.dataset.directSrc;
+        if (target.dataset.fallbackStep === 'proxy' && directSrc) {
+          target.dataset.fallbackStep = 'direct';
+          target.src = directSrc;
+          return;
+        }
         if (target.src !== defaultPoster) {
+          target.dataset.fallbackStep = 'default';
           target.src = defaultPoster;
         }
       }

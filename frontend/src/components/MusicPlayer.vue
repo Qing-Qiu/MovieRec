@@ -236,9 +236,16 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
+.music-player-container.is-expanded {
+  right: auto;
+  left: 50%;
+  width: min(720px, calc(100vw - 32px));
+  transform: translateX(-50%);
+}
+
 .player-panel {
-  width: 360px;
-  padding: 16px 16px 14px;
+  width: 100%;
+  padding: 12px 18px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(14px);
@@ -250,15 +257,16 @@ onMounted(() => {
 
 .player-controls {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
+  align-items: center;
   gap: 14px;
 }
 
 .close-btn {
   position: absolute;
-  top: -6px;
-  right: -4px;
+  top: -8px;
+  right: -10px;
   width: 30px;
   height: 30px;
   display: inline-flex;
@@ -345,6 +353,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-right: 18px;
 }
 
 .main-toggle {
@@ -432,8 +441,26 @@ audio {
     bottom: 12px;
   }
 
+  .music-player-container.is-expanded {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    transform: none;
+  }
+
   .player-panel {
-    width: min(360px, calc(100vw - 24px));
+    width: 100%;
+    padding: 16px;
+  }
+
+  .player-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .player-actions {
+    padding-right: 0;
   }
 }
 </style>

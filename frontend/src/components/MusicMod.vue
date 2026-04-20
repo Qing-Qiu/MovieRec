@@ -12,19 +12,21 @@
       <!-- Search Section -->
       <div class="search-section">
         <div class="search-shell">
-          <a-input-search
-            v-model:value="formState.search"
-            placeholder="搜索歌曲、歌手..."
-            enter-button="搜索"
-            size="large"
-            :loading="searching"
-            @search="submitForm"
-            class="custom-search"
-          >
-            <template #prefix>
-              <SearchOutlined class="search-icon" />
-            </template>
-          </a-input-search>
+          <div class="custom-search">
+            <a-input
+              v-model:value="formState.search"
+              placeholder="搜索歌曲、歌手..."
+              size="large"
+              @pressEnter="submitForm"
+            >
+              <template #prefix>
+                <SearchOutlined class="search-icon" role="button" aria-label="搜索" @click.stop="submitForm" />
+              </template>
+              <template #suffix>
+                <LoadingOutlined v-if="searching" class="search-loading" />
+              </template>
+            </a-input>
+          </div>
         </div>
       </div>
 
@@ -105,6 +107,7 @@ import { useCounterStore } from "@/store/store";
 import { reactive, ref } from "vue";
 import { 
   SearchOutlined, 
+  LoadingOutlined,
   PlayCircleOutlined, 
   PauseCircleOutlined,
   SoundOutlined, 
@@ -266,7 +269,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 <style scoped>
 .music-container {
   min-height: calc(100vh - 64px);
-  padding: 24px 0 40px;
+  padding: 24px 0 132px;
 }
 
 .music-content {
@@ -336,7 +339,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   width: auto !important;
   min-width: 0;
   border-color: var(--movie-line);
-  border-radius: var(--movie-radius) 0 0 var(--movie-radius) !important;
+  border-radius: var(--movie-radius) !important;
   padding: 0 18px !important;
   box-shadow: none;
   background: #fff;
@@ -398,6 +401,20 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   background: rgba(196, 59, 69, 0.1);
   border-color: rgba(196, 59, 69, 0.34);
   box-shadow: inset 0 0 0 1px rgba(196, 59, 69, 0.05);
+}
+
+.search-icon {
+  cursor: pointer;
+  color: var(--movie-muted);
+  transition: color 0.2s ease;
+}
+
+.search-icon:hover {
+  color: var(--movie-accent);
+}
+
+.search-loading {
+  color: var(--movie-muted);
 }
 
 .results-card {
