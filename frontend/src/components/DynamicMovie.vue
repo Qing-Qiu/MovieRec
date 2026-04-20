@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <a-card class="movie-hero-card" :bordered="false">
+    <a-card class="detail-card movie-detail-card" :bordered="false">
       <div class="hero-content">
         <div class="poster-wrapper">
           <img :src="imageProxyUrl(this.movie_content.img)" :data-direct-src="this.movie_content.img || ''" :alt="this.movie_content.name" referrerpolicy="no-referrer" class="movie-poster" @error="handleImageError"/>
@@ -47,22 +47,22 @@
               <span class="info-value">{{ formatGenre(this.movie_content.genre || this.movie_content.tag) }}</span>
             </div>
           </div>
-
-          <div class="hero-summary">
-            <div class="summary-heading">剧情简介</div>
-            <div class="summary-panel">
-              <div class="summary-rule"></div>
-              <a-typography-paragraph :content="this.movie_content.summary || '暂无剧情简介。'"
-                                      :ellipsis="ellipsis ? { rows: 4, expandable: true, symbol: '展开全部' } : false"
-                                      class="summary-text"/>
-            </div>
-          </div>
         </div>
       </div>
-    </a-card>
 
-    <a-card class="section-card paged-section" :bordered="false">
-      <template #title>
+      <section class="detail-section summary-section">
+        <div class="section-title-line summary-title-line">
+          <span>剧情简介</span>
+        </div>
+        <div class="summary-panel">
+          <div class="summary-rule"></div>
+          <a-typography-paragraph :content="this.movie_content.summary || '暂无剧情简介。'"
+                                  :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
+                                  class="summary-text"/>
+        </div>
+      </section>
+
+      <section class="detail-section paged-section">
         <div class="paged-title-line">
           <span>演职员表</span>
           <span class="page-center-status" v-if="castTotalPages > 1">
@@ -91,38 +91,34 @@
           </span>
           <span class="section-count">共 {{ count1 }} 位</span>
         </div>
-      </template>
 
-      <div class="paged-stage">
-        <div class="cast-grid" v-if="person_list.length">
-          <button
-              v-for="(item, itemIndex) in person_list"
-              :key="itemIndex"
-              type="button"
-              class="cast-tile"
-              @click="watchPersonDetail(item.personID)"
-          >
-            <span class="cast-photo">
-               <img :src="imageProxyUrl(item.img)" :data-direct-src="item.img || ''" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
-            </span>
-            <span class="cast-meta">
-              <span class="cast-role">{{ item.role || '演职员' }}</span>
-              <span class="cast-name">{{ item.name }}</span>
-            </span>
-          </button>
+        <div class="paged-stage">
+          <div class="cast-grid" v-if="person_list.length">
+            <button
+                v-for="(item, itemIndex) in person_list"
+                :key="itemIndex"
+                type="button"
+                class="cast-tile"
+                @click="watchPersonDetail(item.personID)"
+            >
+              <span class="cast-photo">
+                 <img :src="imageProxyUrl(item.img)" :data-direct-src="item.img || ''" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
+              </span>
+              <span class="cast-meta">
+                <span class="cast-role">{{ item.role || '演职员' }}</span>
+                <span class="cast-name">{{ item.name }}</span>
+              </span>
+            </button>
+          </div>
+          <a-empty v-else description="暂无演职员资料" class="empty-state"/>
         </div>
-        <a-empty v-else description="暂无演职员资料" class="empty-state"/>
+      </section>
 
-      </div>
-    </a-card>
-
-    <a-card class="section-card comments-card" :bordered="false">
-      <template #title>
+      <section class="detail-section comments-section comments-card">
         <div class="section-title-line">
           <span>评论</span>
           <span class="section-count">{{ count2 }} 条</span>
         </div>
-      </template>
 
       <div class="comment-input-section" :class="{ disabled: !disable() }">
         <a-avatar :src="UserImage" size="large" class="compose-avatar"/>
@@ -177,6 +173,7 @@
         <span v-else-if="hasMoreComments" class="comment-load-hint">下滑加载更多评论</span>
         <span v-else class="comment-load-hint">已显示全部评论</span>
       </div>
+      </section>
     </a-card>
   </div>
 </template>
@@ -447,24 +444,28 @@ import UserImage from '@/assets/meow.jpg';
   text-align: left;
 }
 
-.movie-hero-card, .section-card {
-  margin-bottom: 24px;
+.detail-card {
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
-  box-shadow: var(--movie-shadow-sm);
-  background: var(--movie-surface);
+  box-shadow: 0 12px 28px rgba(18, 24, 33, 0.07);
+  background: #fff;
   overflow: hidden;
 }
 
-:deep(.section-card .ant-card-head) {
-  border-bottom-color: var(--movie-line);
-  min-height: 58px;
+.detail-card :deep(.ant-card-body) {
+  padding: 0;
 }
 
-:deep(.section-card .ant-card-head-title) {
-  color: var(--movie-ink);
-  font-weight: 650;
-  letter-spacing: 0;
+.detail-section {
+  padding: 28px 32px;
+  border-top: 1px solid var(--movie-line);
+  background: #fff;
+}
+
+.summary-title-line,
+.paged-section .paged-title-line,
+.comments-section .section-title-line {
+  margin-bottom: 18px;
 }
 
 .hero-content {
@@ -473,7 +474,7 @@ import UserImage from '@/assets/meow.jpg';
   gap: 36px;
   padding: 32px;
   background:
-      linear-gradient(135deg, rgba(21, 25, 31, 0.05), rgba(196, 59, 69, 0.04)),
+      linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98)),
       #fff;
 }
 
@@ -481,17 +482,21 @@ import UserImage from '@/assets/meow.jpg';
   flex-shrink: 0;
   width: min(260px, 32vw);
   aspect-ratio: 2 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   border-radius: var(--movie-radius);
-  background: #e8edf2;
-  box-shadow: 0 18px 36px rgba(18, 24, 33, 0.16);
+  background: var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  box-shadow: 0 14px 28px rgba(18, 24, 33, 0.12);
 }
 
 .movie-poster {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .info-wrapper {
@@ -515,7 +520,7 @@ import UserImage from '@/assets/meow.jpg';
 
 .movie-title {
   margin-bottom: 14px;
-  font-weight: 700;
+  font-weight: 750;
   color: var(--movie-ink);
   letter-spacing: 0;
   line-height: 1.16;
@@ -548,10 +553,10 @@ import UserImage from '@/assets/meow.jpg';
   gap: 24px;
   margin-bottom: 24px;
   padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #fff;
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
-  box-shadow: 0 10px 24px rgba(18, 24, 33, 0.06);
+  box-shadow: 0 8px 18px rgba(18, 24, 33, 0.05);
 }
 
 .rating-label {
@@ -622,26 +627,12 @@ import UserImage from '@/assets/meow.jpg';
   color: var(--movie-gold);
 }
 
-.hero-summary {
-  margin-top: 20px;
-}
-
-.summary-heading {
-  margin-bottom: 10px;
-  color: var(--movie-ink);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 .summary-panel {
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr);
-  gap: 16px;
-  padding: 16px 18px;
-  background:
-      linear-gradient(135deg, rgba(196, 59, 69, 0.06), rgba(21, 127, 131, 0.05)),
-      rgba(255, 255, 255, 0.62);
+  gap: 18px;
+  padding: 20px 22px;
+  background: var(--movie-surface-soft);
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
 }
@@ -654,9 +645,9 @@ import UserImage from '@/assets/meow.jpg';
 }
 
 .summary-text {
-  font-size: 15px;
-  line-height: 1.9;
-  color: var(--movie-ink);
+  font-size: 15.5px;
+  line-height: 1.88;
+  color: rgba(18, 24, 33, 0.86);
   margin-bottom: 0;
   letter-spacing: 0;
 }
@@ -681,11 +672,11 @@ import UserImage from '@/assets/meow.jpg';
   padding: 12px;
   text-align: left;
   color: inherit;
-  background: linear-gradient(180deg, #fff, var(--movie-surface-soft));
+  background: #fff;
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
   cursor: pointer;
-  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.05);
+  box-shadow: 0 4px 12px rgba(18, 24, 33, 0.04);
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
@@ -693,7 +684,7 @@ import UserImage from '@/assets/meow.jpg';
 .cast-tile:focus-visible {
   transform: translateY(-2px);
   border-color: rgba(196, 59, 69, 0.32);
-  background: #fff;
+  background: rgba(248, 250, 252, 0.72);
   box-shadow: var(--movie-shadow-sm);
   outline: none;
 }
@@ -725,7 +716,7 @@ import UserImage from '@/assets/meow.jpg';
 .cast-name {
   color: var(--movie-ink);
   font-size: 15px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.35;
   word-break: break-word;
 }
@@ -734,9 +725,9 @@ import UserImage from '@/assets/meow.jpg';
   width: fit-content;
   max-width: 100%;
   padding: 3px 9px;
-  color: var(--movie-teal);
-  background: rgba(21, 127, 131, 0.08);
-  border: 1px solid rgba(21, 127, 131, 0.16);
+  color: var(--movie-accent);
+  background: rgba(196, 59, 69, 0.08);
+  border: 1px solid rgba(196, 59, 69, 0.16);
   border-radius: var(--movie-radius);
   font-size: 12px;
   font-weight: 650;
@@ -749,10 +740,6 @@ import UserImage from '@/assets/meow.jpg';
   padding: 36px 0 24px;
 }
 
-:deep(.paged-section .ant-card-head-title) {
-  width: 100%;
-}
-
 .paged-title-line {
   position: relative;
   width: 100%;
@@ -761,6 +748,10 @@ import UserImage from '@/assets/meow.jpg';
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  color: var(--movie-ink);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .page-center-status {
@@ -829,15 +820,15 @@ import UserImage from '@/assets/meow.jpg';
   padding: 0;
 }
 
-.comments-card :deep(.ant-card-body) {
-  padding-top: 22px;
-}
-
 .section-title-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  color: var(--movie-ink);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .section-count {
@@ -855,7 +846,7 @@ import UserImage from '@/assets/meow.jpg';
   gap: 16px;
   margin-bottom: 26px;
   padding: 18px;
-  background: var(--movie-surface-soft);
+  background: #fff;
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
 }
@@ -1012,6 +1003,10 @@ import UserImage from '@/assets/meow.jpg';
     flex-direction: column;
     align-items: center;
     padding: 20px;
+  }
+
+  .detail-section {
+    padding: 22px 20px;
   }
   
   .poster-wrapper {

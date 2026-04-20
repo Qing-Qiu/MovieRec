@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <a-card class="person-hero-card" :bordered="false">
+    <a-card class="detail-card person-detail-card" :bordered="false">
       <div class="hero-content">
         <div class="poster-wrapper">
           <img :src="imageProxyUrl(this.person_content.img)" :data-direct-src="this.person_content.img || ''" :alt="this.person_content.name" referrerpolicy="no-referrer" class="person-poster" @error="handleImageError"/>
@@ -25,22 +25,22 @@
               <strong>{{ this.person_content.birthplace || '-' }}</strong>
             </div>
           </div>
-
-          <div class="hero-summary">
-            <div class="summary-heading">影人简介</div>
-            <div class="summary-panel">
-              <div class="summary-rule"></div>
-              <a-typography-paragraph :content="this.person_content.summary || '暂无影人简介。'"
-                                      :ellipsis="ellipsis ? { rows: 4, expandable: true, symbol: '展开全部' } : false"
-                                      class="summary-text"/>
-            </div>
-          </div>
         </div>
       </div>
-    </a-card>
 
-    <a-card class="section-card" :bordered="false">
-      <template #title>
+      <section class="detail-section summary-section">
+        <div class="section-title-line summary-title-line">
+          <span>影人简介</span>
+        </div>
+        <div class="summary-panel">
+          <div class="summary-rule"></div>
+          <a-typography-paragraph :content="this.person_content.summary || '暂无影人简介。'"
+                                  :ellipsis="ellipsis ? { rows: 5, expandable: true, symbol: '展开全部' } : false"
+                                  class="summary-text"/>
+        </div>
+      </section>
+
+      <section class="detail-section paged-section">
         <div class="paged-title-line">
           <span>代表作品</span>
           <span class="page-center-status" v-if="worksTotalPages > 1">
@@ -69,29 +69,28 @@
           </span>
           <span class="section-count">{{ count1 }} 部</span>
         </div>
-      </template>
 
-      <div class="paged-stage">
-        <div class="work-grid" v-if="movie_list.length">
-          <button
-              v-for="(item, itemIndex) in movie_list"
-              :key="itemIndex"
-              type="button"
-              class="work-tile"
-              @click="watchMovieDetail(item.movieID)"
-          >
-            <span class="work-poster">
-               <img :src="imageProxyUrl(item.img)" :data-direct-src="item.img || ''" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
-            </span>
-            <span class="work-meta">
-              <span class="work-genre">{{ formatGenre(item.genre) || '暂无类型' }}</span>
-              <span class="work-title">{{ item.name }}</span>
-            </span>
-          </button>
+        <div class="paged-stage">
+          <div class="work-grid" v-if="movie_list.length">
+            <button
+                v-for="(item, itemIndex) in movie_list"
+                :key="itemIndex"
+                type="button"
+                class="work-tile"
+                @click="watchMovieDetail(item.movieID)"
+            >
+              <span class="work-poster">
+                 <img :src="imageProxyUrl(item.img)" :data-direct-src="item.img || ''" :alt="item.name" referrerpolicy="no-referrer" @error="handleImageError"/>
+              </span>
+              <span class="work-meta">
+                <span class="work-genre">{{ formatGenre(item.genre) || '暂无类型' }}</span>
+                <span class="work-title">{{ item.name }}</span>
+              </span>
+            </button>
+          </div>
+          <a-empty v-else description="暂无代表作品" class="empty-state"/>
         </div>
-        <a-empty v-else description="暂无代表作品" class="empty-state"/>
-
-      </div>
+      </section>
     </a-card>
   </div>
 </template>
@@ -219,24 +218,27 @@ const ellipsis = ref(true);
   text-align: left;
 }
 
-.person-hero-card, .section-card {
-  margin-bottom: 24px;
+.detail-card {
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
-  box-shadow: var(--movie-shadow-sm);
-  background: var(--movie-surface);
+  box-shadow: 0 12px 28px rgba(18, 24, 33, 0.07);
+  background: #fff;
   overflow: hidden;
 }
 
-:deep(.section-card .ant-card-head) {
-  border-bottom-color: var(--movie-line);
-  min-height: 58px;
+.detail-card :deep(.ant-card-body) {
+  padding: 0;
 }
 
-:deep(.section-card .ant-card-head-title) {
-  color: var(--movie-ink);
-  font-weight: 650;
-  letter-spacing: 0;
+.detail-section {
+  padding: 28px 32px;
+  border-top: 1px solid var(--movie-line);
+  background: #fff;
+}
+
+.summary-title-line,
+.paged-section .paged-title-line {
+  margin-bottom: 18px;
 }
 
 .hero-content {
@@ -245,7 +247,7 @@ const ellipsis = ref(true);
   gap: 36px;
   padding: 32px;
   background:
-      linear-gradient(135deg, rgba(21, 25, 31, 0.05), rgba(21, 127, 131, 0.06)),
+      linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98)),
       #fff;
 }
 
@@ -253,17 +255,21 @@ const ellipsis = ref(true);
   flex-shrink: 0;
   width: min(230px, 30vw);
   aspect-ratio: 2 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   border-radius: var(--movie-radius);
-  background: #e8edf2;
-  box-shadow: 0 18px 36px rgba(18, 24, 33, 0.16);
+  background: var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  box-shadow: 0 14px 28px rgba(18, 24, 33, 0.12);
 }
 
 .person-poster {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .info-wrapper {
@@ -287,7 +293,7 @@ const ellipsis = ref(true);
 
 .person-title {
   margin-bottom: 14px;
-  font-weight: 700;
+  font-weight: 750;
   color: var(--movie-ink);
   letter-spacing: 0;
   line-height: 1.18;
@@ -300,10 +306,10 @@ const ellipsis = ref(true);
   gap: 22px;
   margin-bottom: 24px;
   padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #fff;
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
-  box-shadow: 0 10px 24px rgba(18, 24, 33, 0.06);
+  box-shadow: 0 8px 18px rgba(18, 24, 33, 0.05);
 }
 
 .identity-item {
@@ -332,26 +338,12 @@ const ellipsis = ref(true);
   background: var(--movie-line);
 }
 
-.hero-summary {
-  margin-top: 20px;
-}
-
-.summary-heading {
-  margin-bottom: 10px;
-  color: var(--movie-ink);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 .summary-panel {
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr);
-  gap: 16px;
-  padding: 16px 18px;
-  background:
-      linear-gradient(135deg, rgba(21, 127, 131, 0.07), rgba(181, 138, 47, 0.06)),
-      rgba(255, 255, 255, 0.62);
+  gap: 18px;
+  padding: 20px 22px;
+  background: var(--movie-surface-soft);
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
 }
@@ -364,9 +356,9 @@ const ellipsis = ref(true);
 }
 
 .summary-text {
-  font-size: 15px;
-  line-height: 1.9;
-  color: var(--movie-ink);
+  font-size: 15.5px;
+  line-height: 1.88;
+  color: rgba(18, 24, 33, 0.86);
   margin-bottom: 0;
   letter-spacing: 0;
 }
@@ -391,19 +383,19 @@ const ellipsis = ref(true);
   padding: 12px;
   text-align: left;
   color: inherit;
-  background: linear-gradient(180deg, #fff, var(--movie-surface-soft));
+  background: #fff;
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
   cursor: pointer;
-  box-shadow: 0 6px 14px rgba(18, 24, 33, 0.05);
+  box-shadow: 0 4px 12px rgba(18, 24, 33, 0.04);
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
 .work-tile:hover,
 .work-tile:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(196, 59, 69, 0.32);
-  background: #fff;
+  border-color: rgba(21, 127, 131, 0.32);
+  background: rgba(248, 250, 252, 0.72);
   box-shadow: var(--movie-shadow-sm);
   outline: none;
 }
@@ -435,7 +427,7 @@ const ellipsis = ref(true);
 .work-title {
   color: var(--movie-ink);
   font-size: 16px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.35;
   word-break: break-word;
 }
@@ -444,9 +436,9 @@ const ellipsis = ref(true);
   width: fit-content;
   max-width: 100%;
   padding: 3px 9px;
-  color: var(--movie-accent);
-  background: rgba(196, 59, 69, 0.08);
-  border: 1px solid rgba(196, 59, 69, 0.16);
+  color: var(--movie-teal);
+  background: rgba(21, 127, 131, 0.08);
+  border: 1px solid rgba(21, 127, 131, 0.16);
   border-radius: var(--movie-radius);
   font-size: 12px;
   font-weight: 650;
@@ -460,6 +452,10 @@ const ellipsis = ref(true);
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  color: var(--movie-ink);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .section-count {
@@ -476,10 +472,6 @@ const ellipsis = ref(true);
   padding: 40px 0 28px;
 }
 
-:deep(.section-card .ant-card-head-title) {
-  width: 100%;
-}
-
 .paged-title-line {
   position: relative;
   width: 100%;
@@ -488,6 +480,10 @@ const ellipsis = ref(true);
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  color: var(--movie-ink);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .page-center-status {
@@ -514,7 +510,7 @@ const ellipsis = ref(true);
 }
 
 .page-center-status strong {
-  color: var(--movie-accent);
+  color: var(--movie-teal);
   font-size: 16px;
   font-weight: 800;
 }
@@ -537,8 +533,8 @@ const ellipsis = ref(true);
 
 .page-nav-button:hover,
 .page-nav-button:focus-visible {
-  color: var(--movie-accent);
-  background: rgba(196, 59, 69, 0.07);
+  color: var(--movie-teal);
+  background: rgba(21, 127, 131, 0.07);
   border-color: transparent;
   outline: none;
 }
@@ -565,6 +561,10 @@ const ellipsis = ref(true);
     flex-direction: column;
     align-items: center;
     padding: 20px;
+  }
+
+  .detail-section {
+    padding: 22px 20px;
   }
   
   .poster-wrapper {
