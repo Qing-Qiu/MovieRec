@@ -1,7 +1,12 @@
 import base64
+import copy
 import requests
 import json
 import re
+import random
+import threading
+import time
+import uuid
 
 class KwApi:
     DES_MODE_DECRYPT = 1
@@ -120,6 +125,74 @@ class KwApi:
     ]
 
     SECRET_KEY = b'ylzsxkwm'
+    USER_AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/120.0.0.0 Safari/537.36',
+    ]
+    RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+    CACHE_TTL_SECONDS = {
+        'search': 90,
+        'mp3': 240,
+        'lrc': 300,
+    }
+    _cache = {}
+    _cache_lock = threading.Lock()
+
+    @classmethod
+    def cache_get(cls, namespace, key):
+        cache_key = (namespace, key)
+        now = time.monotonic()
+        with cls._cache_lock:
+            cached = cls._cache.get(cache_key)
+            if not cached:
+                return None
+
+            expires_at, value = cached
+            if expires_at <= now:
+                cls._cache.pop(cache_key, None)
+                return None
+
+            return copy.deepcopy(value)
+
+    @classmethod
+    def cache_set(cls, namespace, key, value):
+        ttl = cls.CACHE_TTL_SECONDS.get(namespace)
+        if not ttl:
+            return
+
+        with cls._cache_lock:
+            cls._cache[(namespace, key)] = (time.monotonic() + ttl, copy.deepcopy(value))
+
+    @classmethod
+    def request_get(cls, url, retries=3, backoff=0.35, **kwargs):
+        headers = dict(kwargs.pop('headers', {}) or {})
+        headers.setdefault('User-Agent', random.choice(cls.USER_AGENTS))
+        kwargs.setdefault('timeout', 8)
+
+        last_error = None
+        for attempt in range(retries):
+            session = requests.Session()
+            session.trust_env = False
+            try:
+                response = session.get(url, headers=headers, **kwargs)
+                response.content
+                if response.status_code in cls.RETRY_STATUS_CODES and attempt < retries - 1:
+                    last_error = requests.HTTPError(f'HTTP {response.status_code} from {url}')
+                    time.sleep(backoff * (2 ** attempt) + random.uniform(0, 0.18))
+                    continue
+                return response
+            except requests.RequestException as error:
+                last_error = error
+                if attempt >= retries - 1:
+                    raise
+                time.sleep(backoff * (2 ** attempt) + random.uniform(0, 0.18))
+            finally:
+                session.close()
+
+        if last_error:
+            raise last_error
+        raise requests.RequestException(f'GET failed: {url}')
 
     @classmethod
     def bit_transform(cls, arr_int, n, l):
@@ -224,6 +297,15 @@ class KwApi:
 
     @classmethod
     def get_mp3_url(cls, rid, br='320kmp3'):
+        rid = cls.normalize_rid(rid)
+        if not rid:
+            return None
+
+        cache_key = (rid, br)
+        cached_url = cls.cache_get('mp3', cache_key)
+        if cached_url:
+            return cached_url
+
         # Construct the query URL
         query = f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br={br}&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download"
         encrypted_query = cls.base64_encrypt(query)
@@ -232,43 +314,79 @@ class KwApi:
         # We need to fetch this URL to get the ACTUAL mp3 link (which is in the body of the response)
         try:
            headers = {
-               "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.50",
                "csrf": "96Y8RG5X3X64",
                "Referer": "https://www.kuwo.cn"
            }
            # Try fetching
-           resp = requests.get(url, headers=headers, timeout=5)
+           resp = cls.request_get(url, headers=headers, timeout=6, retries=2)
+           resp.raise_for_status()
            pattern = r'url=(.*)'
            match = re.search(pattern, resp.text)
            if match and match.group(1):
-               return match.group(1).strip()
+               final_url = match.group(1).strip()
+               cls.cache_set('mp3', cache_key, final_url)
+               return final_url
            else:
                # Try to parse properties if it's line separated
                for line in resp.text.splitlines():
                    if line.startswith('url='):
-                       return line.split('=', 1)[1].strip()
+                       final_url = line.split('=', 1)[1].strip()
+                       cls.cache_set('mp3', cache_key, final_url)
+                       return final_url
         except:
             return None 
         return None
 
     @classmethod
     def search(cls, key, pn=0, rn=30):
-        url = f'http://search.kuwo.cn/r.s?pn={pn}&rn={rn}&all={key}&ft=music&newsearch=1&alflac=1&itemset=web_2013&client=kt&cluster=0&vermerge=1&rformat=json&encoding=utf8&show_copyright_off=1&pcmp4=1&ver=mbox&plat=pc&vipver=MUSIC_9.2.0.0_W6&devid=11404450&newver=1&issubtitle=1&pcjson=1'
+        key = (key or '').strip()
+        try:
+            pn = max(int(pn), 0)
+        except (TypeError, ValueError):
+            pn = 0
+        try:
+            rn = max(int(rn), 1)
+        except (TypeError, ValueError):
+            rn = 30
+
+        cache_key = (key, pn, rn)
+        cached_result = cls.cache_get('search', cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        url = 'http://search.kuwo.cn/r.s'
+        params = {
+            'pn': pn,
+            'rn': rn,
+            'all': key or '',
+            'ft': 'music',
+            'newsearch': '1',
+            'alflac': '1',
+            'itemset': 'web_2013',
+            'client': 'kt',
+            'cluster': '0',
+            'vermerge': '1',
+            'rformat': 'json',
+            'encoding': 'utf8',
+            'show_copyright_off': '1',
+            'pcmp4': '1',
+            'ver': 'mbox',
+            'plat': 'pc',
+            'vipver': 'MUSIC_9.2.0.0_W6',
+            'devid': '11404450',
+            'newver': '1',
+            'issubtitle': '1',
+            'pcjson': '1',
+        }
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.188'
+            'Accept': 'application/json,text/plain,*/*',
+            'Referer': 'https://www.kuwo.cn/',
         }
         try:
-            responseText = requests.get(url=url, headers=headers).text
-            # The API returns a JavaScript object, not strict JSON.
-            # Using eval is the most robust way to parse this legacy format 
-            # where keys might be unquoted or single quoted, and values might contain escaped quotes.
-            # Security Note: This connects to a specific known music API.
-            try:
-                responseJson = eval(responseText)
-            except Exception:
-                # If eval fails, try cleaning as fallback
-                cleaned_text = responseText.replace("'", '"')
-                responseJson = json.loads(cleaned_text)
+            response = cls.request_get(url=url, params=params, headers=headers, timeout=8)
+            response.raise_for_status()
+            response.encoding = 'utf-8'
+            responseJson = json.loads(response.text)
             
             search_results = []
             if responseJson.get("abslist"):
@@ -295,83 +413,175 @@ class KwApi:
                     except:
                         continue
             
-            return {'total': responseJson.get('TOTAL'), 'list': search_results}
+            result = {'total': responseJson.get('TOTAL'), 'list': search_results}
+            cls.cache_set('search', cache_key, result)
+            return result
         except Exception as e:
             print(f"Search API Error: {e}")
             return {'total': 0, 'list': []}
 
     @classmethod
-    def get_lrc(cls, rid):
+    def normalize_rid(cls, rid):
+        rid_text = str(rid).strip()
+        return rid_text if rid_text.isdigit() else None
+
+    @classmethod
+    def extract_lrc_list(cls, data):
+        if not isinstance(data, dict):
+            return []
+
+        payload = data.get("data") or {}
+        lrc_list = payload.get("lrclist") or []
+        return lrc_list if isinstance(lrc_list, list) else []
+
+    @classmethod
+    def fetch_lrc_direct(cls, rid, base_url):
+        params = {
+            'musicId': rid,
+        }
+        if 'newh5' in base_url:
+            params.update({
+                'httpsStatus': '0' if base_url.startswith('http://') else '1',
+                'reqId': str(uuid.uuid4()),
+            })
+        headers = {
+            'Accept': 'application/json,text/plain,*/*',
+            'Referer': 'https://www.kuwo.cn/' if 'openapi' in base_url else f'https://m.kuwo.cn/yinyue/{rid}',
+        }
+
+        response = cls.request_get(
+            base_url,
+            params=params,
+            headers=headers,
+            timeout=6,
+            retries=3,
+        )
+        response.raise_for_status()
+        response.encoding = 'utf-8'
+        try:
+            data = response.json()
+        except ValueError:
+            data = json.loads(response.text)
+        return cls.extract_lrc_list(data)
+
+    @classmethod
+    def fetch_lrc_subprocess(cls, rid):
         import subprocess
-        import json
         import sys
         import os
-        
-        # We shell out to a clean python process to bypass environment issues (like gevent patching)
-        # that seem to trigger anti-bot protection on the Kuwo API when running inside Flask.
-        script = f"""
-import urllib.request
+
+        # Keep this as a fallback path because Kuwo's lyric endpoint sometimes
+        # behaves differently in Flask's long-lived process than in a fresh one.
+        script = """
 import json
-import uuid
 import os
 import sys
+import urllib.parse
+import urllib.request
+import uuid
+
+def extract_lrc_list(data):
+    payload = data.get('data') or {}
+    lrc_list = payload.get('lrclist') or []
+    return lrc_list if isinstance(lrc_list, list) else []
 
 def fetch():
-    # Clean proxies from env if present
-    if 'HTTP_PROXY' in os.environ: del os.environ['HTTP_PROXY']
-    if 'HTTPS_PROXY' in os.environ: del os.environ['HTTPS_PROXY']
-    
-    rid = {rid}
-    req_id = str(uuid.uuid4())
-    url = f'https://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId={{rid}}&httpsStatus=1&reqId={{req_id}}'
-    headers = {{
-        'User-Agent': 'Mozilla/5.0'
-    }}
-    try:
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as response:
-            data = response.read().decode('utf-8')
-            print(data)
-    except Exception as e:
-        print(json.dumps({{'error': str(e)}}))
+    for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'):
+        os.environ.pop(key, None)
+
+    rid = sys.argv[1]
+    sources = (
+        ('https://www.kuwo.cn/openapi/v1/www/lyric/getlyric', None),
+        ('https://kuwo.cn/openapi/v1/www/lyric/getlyric', None),
+        'https://m.kuwo.cn/newh5/singles/songinfoandlrc',
+        'http://m.kuwo.cn/newh5/singles/songinfoandlrc',
+    )
+
+    for source in sources:
+        if isinstance(source, tuple):
+            base_url, https_status = source
+        else:
+            base_url = source
+            https_status = '0' if base_url.startswith('http://') else '1'
+
+        query = {
+            'musicId': rid,
+        }
+        if https_status is not None:
+            query.update({
+                'httpsStatus': https_status,
+                'reqId': str(uuid.uuid4()),
+            })
+
+        params = urllib.parse.urlencode(query)
+        headers = {
+            'Accept': 'application/json,text/plain,*/*',
+            'Referer': 'https://www.kuwo.cn/' if 'openapi' in base_url else f'https://m.kuwo.cn/yinyue/{rid}',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
+        try:
+            req = urllib.request.Request(f'{base_url}?{params}', headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode('utf-8'))
+            lrc_list = extract_lrc_list(data)
+            if lrc_list:
+                print(json.dumps(lrc_list, ensure_ascii=False))
+                return
+        except Exception:
+            continue
+
+    print('[]')
 
 if __name__ == '__main__':
     fetch()
 """
         try:
             env = os.environ.copy()
-            env.pop('HTTP_PROXY', None)
-            env.pop('HTTPS_PROXY', None)
-            env.pop('ALL_PROXY', None)
-            
+            for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'):
+                env.pop(key, None)
+
             result = subprocess.run(
-                [sys.executable, "-c", script], 
-                capture_output=True, 
-                text=True, 
-                timeout=10,
+                [sys.executable, "-c", script, rid],
+                capture_output=True,
+                text=True,
+                timeout=14,
                 encoding='utf-8',
+                errors='replace',
                 env=env
             )
-            
-            output = result.stdout.strip()
-            
-            try:
-                # Find the JSON part if there is any preceding text
-                json_start = output.find('{')
-                if json_start != -1:
-                    json_str = output[json_start:]
-                    data = json.loads(json_str)
-                else:
-                    data = {}
-            except:
-                return []
-
-            if data.get("data") and data["data"].get("lrclist"):
-                return data["data"]["lrclist"]
-            
+            return json.loads(result.stdout.strip() or '[]')
         except Exception:
-            pass
-        return []
+            return []
+
+    @classmethod
+    def get_lrc(cls, rid):
+        rid = cls.normalize_rid(rid)
+        if not rid:
+            return []
+
+        cached_lrc = cls.cache_get('lrc', rid)
+        if cached_lrc is not None:
+            return cached_lrc
+
+        lyric_urls = (
+            'https://www.kuwo.cn/openapi/v1/www/lyric/getlyric',
+            'https://kuwo.cn/openapi/v1/www/lyric/getlyric',
+            'https://m.kuwo.cn/newh5/singles/songinfoandlrc',
+            'http://m.kuwo.cn/newh5/singles/songinfoandlrc',
+        )
+        for base_url in lyric_urls:
+            try:
+                lrc_list = cls.fetch_lrc_direct(rid, base_url)
+                if lrc_list:
+                    cls.cache_set('lrc', rid, lrc_list)
+                    return lrc_list
+            except Exception:
+                continue
+
+        lrc_list = cls.fetch_lrc_subprocess(rid)
+        if lrc_list:
+            cls.cache_set('lrc', rid, lrc_list)
+        return lrc_list
 
 def kwFirstUrl(rid, br='320kmp3'):
     query = f"user=0&android_id=0&prod=kwplayer_ar_8.5.5.0&corp=kuwo&newver=3&vipver=8.5.5.0&source=kwplayer_ar_8.5.5.0_apk_keluze.apk&p2p=1&notrace=0&type=convert_url2&br={br}&format=flac|mp3|aac&sig=0&rid={rid}&priority=bitrate&loginUid=0&network=WIFI&loginSid=0&mode=download"

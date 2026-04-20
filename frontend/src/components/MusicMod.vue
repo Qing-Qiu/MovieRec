@@ -31,14 +31,32 @@
       <!-- Results Section -->
       <a-card :bordered="false" class="results-card" v-if="hasSearched">
         <template v-if="song_list.length > 0">
-          <a-list item-layout="horizontal" :data-source="song_list" :split="false">
+          <div class="results-header">
+            <div>
+              <h2 class="results-title">搜索结果</h2>
+              <p class="results-subtitle">
+                “{{ formState.search.trim() }}”
+                <span v-if="search_total">共 {{ search_total }} 首</span>
+              </p>
+            </div>
+            <span class="page-badge">第 {{ page_num }} 页</span>
+          </div>
+
+          <a-list item-layout="horizontal" :data-source="song_list" :split="false" class="song-list">
             <template #renderItem="{ item, index }">
-              <a-list-item class="song-item">
-                <div class="song-info">
+              <a-list-item class="song-item" :class="{ active: isCurrentSong(item.rid) }">
+                <div class="song-main">
                   <div class="song-index">{{ (page_num - 1) * 30 + index + 1 }}</div>
+                  <div class="song-cover" :class="{ 'empty-cover': !item.pic }">
+                    <img v-if="item.pic" :src="item.pic" :alt="item.name" loading="lazy" decoding="async" @error="handleCoverError" />
+                    <span class="cover-note">♪</span>
+                  </div>
                   <div class="song-details">
                     <div class="song-name">{{ item.name }}</div>
-                    <div class="song-artist"><UserOutlined /> {{ item.artist }}</div>
+                    <div class="song-meta">
+                      <span><UserOutlined /> {{ item.artist || '未知歌手' }}</span>
+                      <span v-if="item.album" class="album-name">{{ item.album }}</span>
+                    </div>
                   </div>
                 </div>
                 <template #actions>
@@ -46,26 +64,30 @@
                     type="primary" 
                     size="middle"
                     class="play-btn"
+                    :class="{ playing: isCurrentPlaying(item.rid) }"
                     @click="playSong(item.rid)"
                   >
-                    <template #icon><PlayCircleOutlined /></template>
-                    播放
+                    <template #icon>
+                      <PauseCircleOutlined v-if="isCurrentPlaying(item.rid)" />
+                      <PlayCircleOutlined v-else />
+                    </template>
+                    {{ playButtonText(item.rid) }}
                   </a-button>
                 </template>
               </a-list-item>
             </template>
           </a-list>
           
-          <div class="pagination-wrapper">
-             <a-space>
-                <a-button @click="changePage(-1)" :disabled="page_num <= 1">上一页</a-button>
-                <span style="margin: 0 10px">第 {{ page_num }} 页</span>
-                <a-button @click="changePage(1)" :disabled="song_list.length < 30">下一页</a-button>
-             </a-space>
+          <div class="music-pager">
+            <a-button class="pager-btn" @click="changePage(-1)" :disabled="page_num <= 1">上一页</a-button>
+            <span class="pager-current">第 {{ page_num }} 页</span>
+            <a-button class="pager-btn" @click="changePage(1)" :disabled="song_list.length < 30">下一页</a-button>
           </div>
         </template>
         
-        <a-empty v-else description="暂无搜索结果" />
+        <div v-else class="empty-music-state">
+          <a-empty description="暂无搜索结果" />
+        </div>
       </a-card>
       
       <!-- Initial State -->
@@ -84,6 +106,7 @@ import { reactive, ref } from "vue";
 import { 
   SearchOutlined, 
   PlayCircleOutlined, 
+  PauseCircleOutlined,
   SoundOutlined, 
   UserOutlined,
   CustomerServiceOutlined
@@ -117,6 +140,14 @@ const changePage = async (delta) => {
   await fetchSongs();
 }
 
+const handleCoverError = (event) => {
+  const cover = event.target.parentElement;
+  event.target.remove();
+  if (cover) {
+    cover.classList.add('empty-cover');
+  }
+}
+
 // Separate fetch logic for reuse
 const fetchSongs = async () => {
   searching.value = true;
@@ -146,7 +177,21 @@ const fetchSongs = async () => {
 // Track current playing song to prevent race conditions
 const currentRid = ref(null);
 
+const isCurrentSong = (rid) => counter.music_rid === rid;
+
+const isCurrentPlaying = (rid) => isCurrentSong(rid) && counter.music_playing;
+
+const playButtonText = (rid) => {
+  if (isCurrentPlaying(rid)) return '播放中';
+  return isCurrentSong(rid) ? '继续' : '播放';
+};
+
 const playSong = async (rid) => {
+  if (isCurrentSong(rid) && counter.music_url) {
+    counter.togglePlayback();
+    return;
+  }
+
   // Update current ID immediately
   currentRid.value = rid;
   
@@ -159,7 +204,7 @@ const playSong = async (rid) => {
 
     // Start playing immediately with empty lyrics
     // This ensures music starts ASAP without waiting for lyrics
-    counter.change(urlRes.data, []); 
+    counter.change(urlRes.data, [], rid);
     message.success('开始播放');
 
     // 2. Fetch Lyrics in background with retry logic
@@ -192,7 +237,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
     if (lrcRes.data && lrcRes.data.length > 0) {
       // Success! Update only the lyrics in the store
-      counter.music_lrc = lrcRes.data;
+      counter.setLyrics(lrcRes.data);
     } else {
       // Decide base delay based on attempt count
       // First 3 retries: fast (500ms)
@@ -221,17 +266,17 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 <style scoped>
 .music-container {
   min-height: calc(100vh - 64px);
-  padding: 28px 0 40px;
+  padding: 24px 0 40px;
 }
 
 .music-content {
-  max-width: 1000px;
+  max-width: 1040px;
   margin: 0 auto;
 }
 
 .header-section {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 34px;
 }
 
 .page-title {
@@ -256,18 +301,24 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
 .search-section {
   width: 100%;
-  margin: 0 auto 40px;
+  margin: 0 auto 32px;
 }
 
 .search-col {
-  flex: 0 1 940px !important;
-  max-width: min(940px, 100%) !important;
+  flex: 0 1 820px !important;
+  max-width: min(820px, calc(100vw - 48px)) !important;
   margin: 0 auto;
+}
+
+:deep(.custom-search) {
+  display: block;
+  width: 100%;
 }
 
 :deep(.custom-search .ant-input-group) {
   display: flex;
   align-items: stretch;
+  width: 100%;
 }
 
 :deep(.custom-search .ant-input-affix-wrapper) {
@@ -279,6 +330,7 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   border-radius: var(--movie-radius) 0 0 var(--movie-radius) !important;
   padding: 0 18px !important;
   box-shadow: none;
+  background: #fff;
 }
 
 :deep(.custom-search .ant-input-affix-wrapper:hover) {
@@ -306,23 +358,35 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
 :deep(.custom-search .ant-input-search-button) {
   height: 56px;
-  min-width: 128px;
+  min-width: 104px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin: 0;
   border-radius: 0 var(--movie-radius) var(--movie-radius) 0 !important;
-  padding: 0 36px;
+  padding: 0 24px;
   font-size: 16px;
-  background: var(--movie-accent);
-  border-color: var(--movie-accent);
-  box-shadow: 0 12px 22px rgba(196, 59, 69, 0.18);
+  font-weight: 650;
+  color: var(--movie-accent);
+  background: rgba(196, 59, 69, 0.06);
+  border-color: var(--movie-line);
+  border-left-color: rgba(196, 59, 69, 0.18);
+  box-shadow: none;
 }
 
 :deep(.custom-search .ant-input-search-button:hover) {
-  background: var(--movie-accent-dark);
-  border-color: var(--movie-accent-dark);
-  box-shadow: 0 14px 26px rgba(196, 59, 69, 0.22);
+  color: var(--movie-accent-dark);
+  background: rgba(196, 59, 69, 0.1);
+  border-color: rgba(196, 59, 69, 0.28);
+  box-shadow: none;
+  transform: none;
+}
+
+:deep(.custom-search .ant-input-search-button:focus) {
+  color: var(--movie-accent-dark);
+  background: rgba(196, 59, 69, 0.1);
+  border-color: rgba(196, 59, 69, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(196, 59, 69, 0.05);
 }
 
 .results-card {
@@ -330,64 +394,167 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
   box-shadow: var(--movie-shadow-sm);
-  padding: 12px;
+  overflow: hidden;
+}
+
+.results-card :deep(.ant-card-body) {
+  padding: 24px 28px 22px;
+}
+
+.results-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.results-title {
+  margin: 0 0 5px;
+  color: var(--movie-ink);
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.results-subtitle {
+  margin: 0;
+  color: var(--movie-muted);
+  font-size: 13px;
+}
+
+.results-subtitle span {
+  margin-left: 8px;
+}
+
+.page-badge {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  color: var(--movie-muted);
+  background: var(--movie-surface-soft);
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.song-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .song-item {
-  padding: 16px 24px;
-  transition: background 0.2s ease, transform 0.2s ease;
+  padding: 12px 14px !important;
+  background: linear-gradient(180deg, #fff, var(--movie-surface-soft));
+  border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--movie-line);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.song-item:last-child {
-  border-bottom: none;
+.song-item.active {
+  border-color: rgba(21, 127, 131, 0.32);
+  background: rgba(21, 127, 131, 0.06);
 }
 
 .song-item:hover {
-  background-color: rgba(21, 127, 131, 0.08);
-  transform: translateX(5px);
+  background: #fff;
+  border-color: rgba(196, 59, 69, 0.22);
+  box-shadow: 0 8px 18px rgba(18, 24, 33, 0.07);
+  transform: translateY(-1px);
 }
 
-.song-info {
+.song-main {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .song-index {
-  font-size: 18px;
-  font-weight: 600;
+  flex: 0 0 34px;
+  width: 34px;
   color: var(--movie-muted);
-  width: 30px;
+  font-size: 14px;
+  font-weight: 700;
   text-align: center;
 }
 
+.song-cover {
+  position: relative;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: rgba(196, 59, 69, 0.62);
+  background: linear-gradient(135deg, rgba(196, 59, 69, 0.1), rgba(21, 127, 131, 0.1));
+  border: 1px solid var(--movie-line);
+  border-radius: var(--movie-radius);
+}
+
+.song-cover img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-note {
+  font-size: 20px;
+  font-weight: 750;
+}
+
 .song-details {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   text-align: left;
   align-items: flex-start;
+  gap: 6px;
 }
 
 .song-name {
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--movie-ink);
-  margin-bottom: 4px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
-.song-artist {
+.song-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   font-size: 13px;
   color: var(--movie-muted);
+}
+
+.song-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.album-name {
+  max-width: 360px;
+  padding-left: 10px;
+  border-left: 1px solid var(--movie-line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .play-btn {
   background: var(--movie-teal);
   border-color: var(--movie-teal);
   border-radius: var(--movie-radius);
-  box-shadow: 0 8px 16px rgba(21, 127, 131, 0.18);
+  box-shadow: 0 6px 14px rgba(21, 127, 131, 0.14);
 }
 
 .play-btn:hover {
@@ -396,10 +563,35 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   transform: translateY(-1px);
 }
 
-.pagination-wrapper {
-  margin-top: 32px;
-  text-align: center;
-  padding-bottom: 24px;
+.play-btn.playing {
+  background: #0f6f73;
+  border-color: #0f6f73;
+}
+
+.play-btn.playing:hover {
+  background: #0b5c60 !important;
+  border-color: #0b5c60 !important;
+}
+
+.music-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.pager-btn {
+  min-width: 82px;
+}
+
+.pager-current {
+  color: var(--movie-muted);
+  font-size: 13px;
+}
+
+.empty-music-state {
+  padding: 46px 0 36px;
 }
 
 .initial-state {
@@ -425,6 +617,34 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
   .song-item {
     padding: 14px 12px;
+  }
+
+  .results-card :deep(.ant-card-body) {
+    padding: 18px 14px;
+  }
+
+  .results-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .song-index {
+    display: none;
+  }
+
+  .song-cover {
+    flex-basis: 46px;
+    width: 46px;
+    height: 46px;
+  }
+
+  :deep(.custom-search .ant-input-search-button) {
+    min-width: 88px;
+    padding: 0 18px;
+  }
+
+  .album-name {
+    max-width: 180px;
   }
 }
 </style>
