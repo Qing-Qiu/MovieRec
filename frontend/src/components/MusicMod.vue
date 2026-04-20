@@ -10,8 +10,8 @@
       </div>
 
       <!-- Search Section -->
-      <a-row justify="center" class="search-section">
-        <a-col :xs="24" class="search-col">
+      <div class="search-section">
+        <div class="search-shell">
           <a-input-search
             v-model:value="formState.search"
             placeholder="搜索歌曲、歌手..."
@@ -25,8 +25,8 @@
               <SearchOutlined class="search-icon" />
             </template>
           </a-input-search>
-        </a-col>
-      </a-row>
+        </div>
+      </div>
 
       <!-- Results Section -->
       <a-card :bordered="false" class="results-card" v-if="hasSearched">
@@ -301,17 +301,24 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
 .search-section {
   width: 100%;
-  margin: 0 auto 32px;
+  display: flex;
+  justify-content: center;
+  margin: 0 auto;
+  margin-bottom: 32px;
 }
 
-.search-col {
-  flex: 0 1 820px !important;
-  max-width: min(820px, calc(100vw - 48px)) !important;
+.search-shell {
+  width: calc(100% - 56px);
   margin: 0 auto;
 }
 
 :deep(.custom-search) {
   display: block;
+  width: 100%;
+}
+
+:deep(.custom-search .ant-input-wrapper) {
+  display: flex;
   width: 100%;
 }
 
@@ -325,7 +332,9 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   height: 56px;
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 1 1 auto;
+  width: auto !important;
+  min-width: 0;
   border-color: var(--movie-line);
   border-radius: var(--movie-radius) 0 0 var(--movie-radius) !important;
   padding: 0 18px !important;
@@ -353,6 +362,8 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
 
 :deep(.custom-search .ant-input-group-addon) {
   display: flex;
+  flex: 0 0 auto;
+  width: auto !important;
   background: transparent;
 }
 
@@ -641,6 +652,10 @@ const fetchLyricsWithRetry = async (rid, attempts = 0) => {
   :deep(.custom-search .ant-input-search-button) {
     min-width: 88px;
     padding: 0 18px;
+  }
+
+  .search-shell {
+    width: 100%;
   }
 
   .album-name {
