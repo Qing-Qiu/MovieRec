@@ -1,7 +1,9 @@
 package com.example.douban.service;
 
 import com.example.douban.pojo.Message;
-import com.example.douban.pojo.Movie;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,17 +19,19 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.function.Consumer;
 
 @Service
 public class OpenAiService {
 
     @Resource
     private RestTemplate restTemplate;
-
-    @Resource
-    private MovieService movieService;
 
     @Value("${openai.base-url:https://api.openai.com/v1}")
     private String baseUrl;
@@ -38,39 +42,23 @@ public class OpenAiService {
     @Value("${openai.model:gpt-3.5-turbo}")
     private String model;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
+
     public String chatSingle(String content) {
-        // Deprecated, wrapper for multi
-        return chatMulti(Collections.singletonList(new Message("user", content)), 1);
+        return chatMulti(Collections.singletonList(new Message("user", content)), 1, null, null, null);
     }
 
     public String chatMulti(List<Message> messages, int mode) {
-        String url = baseUrl + "/chat/completions";
+        return chatMulti(messages, mode, null, null, null);
+    }
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.setBearerAuth(apiKey);
-        }
-
-        // RAG Logic
-        if (mode == 2 && !messages.isEmpty()) {
-            Message lastMsg = messages.get(messages.size() - 1);
-            if ("user".equals(lastMsg.getRole())) {
-                String potentialMovieName = extractMovieName(lastMsg.getContent());
-                if (potentialMovieName != null && !potentialMovieName.isEmpty()) {
-                    ArrayList<Movie> movies = movieService.findMovieByKeyWords(potentialMovieName, 1, 0);
-                    if (movies != null && !movies.isEmpty()) {
-                        Movie m = movies.get(0);
-                        String context = String.format("【已知信息】电影名：《%s》，导演：%s，主演：%s，评分：%s(满分5分)，类型：%s。",
-                                m.getName(), m.getDirector(), m.getActor(), m.getRate(), m.getGenre());
-                        // Insert system message at the beginning
-                        messages.add(0, new Message("system", "你是一个电影专家。利用以下已知信息回答用户问题。" + context));
-                    }
-                }
-            }
-        }
-
-        ChatRequest request = new ChatRequest(model, messages);
+    public String chatMulti(List<Message> messages, int mode, String modeKey, String modeName, String contextText) {
+        String url = normalizeBaseUrl() + "/chat/completions";
+        HttpHeaders headers = buildHeaders();
+        ChatRequest request = new ChatRequest(model, prepareMessages(messages, mode, modeKey, modeName, contextText), false);
         HttpEntity<ChatRequest> entity = new HttpEntity<>(request, headers);
 
         try {
@@ -85,27 +73,128 @@ public class OpenAiService {
         return "No response from AI service.";
     }
 
-    private String extractMovieName(String content) {
-        // 1. Try to find 《...》
-        Pattern pattern = Pattern.compile("《(.*?)》");
-        Matcher matcher = pattern.matcher(content);
-        if (matcher.find()) {
-            return matcher.group(1);
+    public void streamChatMulti(List<Message> messages, int mode, String modeKey, String modeName,
+                                String contextText, Consumer<String> chunkConsumer) {
+        try {
+            ChatRequest request = new ChatRequest(model, prepareMessages(messages, mode, modeKey, modeName, contextText), true);
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(normalizeBaseUrl() + "/chat/completions"))
+                    .timeout(Duration.ofSeconds(120))
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(request), StandardCharsets.UTF_8));
+            if (apiKey != null && !apiKey.isBlank()) {
+                builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey);
+            }
+
+            HttpResponse<java.util.stream.Stream<String>> response =
+                    httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofLines());
+            if (response.statusCode() >= 400) {
+                chunkConsumer.accept("模型服务暂时不可用，请检查 API Key、模型地址或网络配置。");
+                return;
+            }
+
+            try (java.util.stream.Stream<String> lines = response.body()) {
+                lines.forEach(line -> handleStreamLine(line, chunkConsumer));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            chunkConsumer.accept("模型服务暂时不可用，请检查 API Key、模型地址或网络配置。");
         }
-        // 2. Fallback: If short enough, assume it's a name? Or just return null to be safe.
-        // For better experience, let's just use the query itself if it's short.
-        if (content.length() < 10) {
-            return content;
+    }
+
+    private void handleStreamLine(String line, Consumer<String> chunkConsumer) {
+        if (line == null || line.isBlank() || !line.startsWith("data:")) {
+            return;
         }
-        return null;
+        String data = line.substring(5).trim();
+        if ("[DONE]".equals(data)) {
+            return;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(data);
+            JsonNode content = root.path("choices").path(0).path("delta").path("content");
+            if (!content.isMissingNode() && !content.asText().isEmpty()) {
+                chunkConsumer.accept(content.asText());
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private List<Message> prepareMessages(List<Message> messages, int mode, String modeKey, String modeName, String contextText) {
+        List<Message> prepared = new ArrayList<>();
+        prepared.add(new Message("system", buildSystemPrompt(resolveModeKey(mode, modeKey), modeName, contextText)));
+        if (messages == null) {
+            return prepared;
+        }
+        for (Message message : messages) {
+            if (message == null || message.getContent() == null || message.getContent().isBlank()) {
+                continue;
+            }
+            String role = message.getRole();
+            if ("user".equals(role) || "assistant".equals(role)) {
+                prepared.add(new Message(role, message.getContent()));
+            }
+        }
+        return prepared;
+    }
+
+    private String buildSystemPrompt(String modeKey, String modeName, String contextText) {
+        String context = contextText == null || contextText.isBlank() ? "暂无数据库上下文。" : contextText;
+        String instruction = switch (modeKey) {
+            case "knowledge" -> "你正在进行电影知识库问答。优先使用给定的电影、影人和评论数据；如果数据不足，要明确说明。";
+            case "recommend" -> "你正在担任电影推荐助手。先总结用户偏好，再基于数据线索给出推荐理由。推荐候选会在页面卡片中展示，文字回答要解释为什么适合。";
+            case "chart" -> "你正在解读 MovieRec 的可视化数据。回答应围绕趋势、对比、异常点和可能原因组织，不要编造未给出的数值。";
+            default -> "你正在进行开放式电影问答。回答应围绕电影、影人、推荐、评论和观影体验展开。";
+        };
+        String displayMode = modeName == null || modeName.isBlank() ? modeKey : modeName;
+        return String.join("\n",
+                "你是 MovieRec 的智能电影助手，只使用中文回答。",
+                "当前模式：" + displayMode + "。",
+                instruction,
+                "项目中的电影评分统一按十分制理解，满分是 10 分。",
+                "回答要具体、克制，不要编造数据库里没有给出的片名、人物、评分或评论。",
+                "如果需要项目数据而上下文不足，请说明还需要进一步检索。",
+                "可用数据线索：",
+                context
+        );
+    }
+
+    private String resolveModeKey(int mode, String modeKey) {
+        if (modeKey != null && !modeKey.isBlank()) {
+            return modeKey;
+        }
+        return mode == 2 ? "knowledge" : "ask";
+    }
+
+    private HttpHeaders buildHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (apiKey != null && !apiKey.isBlank()) {
+            headers.setBearerAuth(apiKey);
+        }
+        return headers;
+    }
+
+    private String normalizeBaseUrl() {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return "https://api.openai.com/v1";
+        }
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }
 
     @Data
-    @AllArgsConstructor
     @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private static class ChatRequest {
         private String model;
         private List<Message> messages;
+        private Boolean stream;
+
+        ChatRequest(String model, List<Message> messages, Boolean stream) {
+            this.model = model;
+            this.messages = messages;
+            this.stream = stream;
+        }
     }
 
     @Data

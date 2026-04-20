@@ -5,7 +5,7 @@ import RegisterPage from '../views/RegisterPage';
 import DynamicMovie from '../components/DynamicMovie';
 import MovieCenterMod from "../components/MovieCenterMod";
 import RecommendSearchMod from "../components/RecommendSearchMod";
-import ModelMod from "../components/ModelMod";
+import ModelMod from "../components/ModelAssistantMod";
 import ChartMod from "../components/ChartMod";
 import DynamicPerson from "@/components/DynamicPerson";
 import MusicMod from "@/components/MusicMod";

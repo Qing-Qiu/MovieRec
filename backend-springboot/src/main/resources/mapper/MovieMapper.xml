@@ -11,7 +11,7 @@
                genre,
                tag,
                summary,
-               rate / 2 AS rate,
+               rate AS rate,
                popular,
                year,
                ratingsum,
@@ -31,7 +31,7 @@
         SELECT movieID,
                name,
                genre,
-               rate / 2 AS rate,
+               rate AS rate,
                popular,
                img
         FROM movie
@@ -143,7 +143,7 @@
                genre,
                tag,
                summary,
-               rate / 2 as rate,
+               rate as rate,
                popular,
                year,
                ratingsum,
@@ -183,7 +183,7 @@
         SELECT movieID,
         name,
         genre,
-        rate / 2 as rate,
+        rate as rate,
         popular,
         img
         FROM movie

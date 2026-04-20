@@ -20,7 +20,7 @@
               <div class="rating-label">MovieRec 评分</div>
               <div class="rating-line">
                 <span class="rating-value">{{ this.movie_content.rate || '-' }}</span>
-                <span class="rating-unit">/ 5</span>
+                <span class="rating-unit">/ 10</span>
               </div>
             </div>
             <div class="rating-divider"></div>

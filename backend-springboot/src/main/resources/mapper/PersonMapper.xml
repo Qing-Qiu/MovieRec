@@ -39,7 +39,7 @@
                genre,
                tag,
                summary,
-               rate / 2 AS rate,
+               rate AS rate,
                popular,
                year,
                ratingsum,
