@@ -51,20 +51,44 @@ public class AiRetrieveService {
         response.setQuery(query);
         response.setMode(mode.isEmpty() ? "ask" : mode);
         response.setKeyword(keyword);
+        addStep(response.getRetrievalSteps(), "解析问题，提取关键词：" + (keyword.isEmpty() ? "无明确关键词" : keyword));
 
         if ("chart".equals(response.getMode())) {
-            addChartItems(response.getReferences(), query, request.getNickname());
+            addChartItems(response.getReferences(), query, request.getNickname(), response.getRetrievalSteps());
         } else if ("knowledge".equals(response.getMode()) || "recommend".equals(response.getMode())) {
-            addMovieAndPersonItems(response.getReferences(), query, keyword, response.getMode(), limit);
+            addMovieAndPersonItems(response.getReferences(), query, keyword, response.getMode(), limit, response.getRetrievalSteps());
+        } else {
+            addStep(response.getRetrievalSteps(), "开放问答模式，不强制检索数据库。");
         }
 
         response.setContextText(buildContextText(response.getReferences()));
+        addStep(response.getRetrievalSteps(), "生成上下文：" + response.getReferences().size() + " 条数据线索。");
         return response;
     }
 
-    private void addMovieAndPersonItems(List<AiContextItem> references, String query, String keyword, String mode, int limit) {
-        List<Movie> movies = findMovies(query, keyword, mode, limit);
-        List<Person> persons = safePersonSearch(keyword, Math.min(3, limit));
+    private void addMovieAndPersonItems(List<AiContextItem> references, String query, String keyword, String mode, int limit, List<String> steps) {
+        List<Person> persons = findPersonsByKeywordCandidates(query, keyword, Math.min(3, limit));
+        addStep(steps, "检索影人候选：" + persons.size() + " 条。");
+        boolean personPrimary = "knowledge".equals(mode) && hasPersonPrimaryIntent(query) && !persons.isEmpty();
+        if (personPrimary) {
+            List<Person> narrowedPersons = narrowPrimaryPersons(persons, keyword);
+            if (narrowedPersons.size() < persons.size()) {
+                addStep(steps, "聚焦最匹配影人：" + fallback(narrowedPersons.get(0).getName(), keyword));
+            }
+            persons = narrowedPersons;
+        }
+
+        List<Movie> movies = new ArrayList<>();
+        if (personPrimary) {
+            addStep(steps, "识别为影人主查询，跳过电影标题同名噪声。");
+        } else {
+            movies = findMovies(query, keyword, mode, limit);
+            addStep(steps, "检索电影候选：" + movies.size() + " 条。");
+            if (movies.isEmpty()) {
+                movies = findMoviesByKeywordCandidates(query, keyword, limit);
+                addStep(steps, "启用候选关键词补检电影：" + movies.size() + " 条。");
+            }
+        }
 
         for (Movie movie : movies) {
             addUnique(references, movieItem(movie));
@@ -73,10 +97,26 @@ public class AiRetrieveService {
             addUnique(references, personItem(person));
         }
 
-        if (!movies.isEmpty() && hasCommentIntent(query)) {
-            AiContextItem commentItem = commentInsightItem(movies.get(0), 20);
-            if (commentItem != null) {
-                addUnique(references, commentItem);
+        if (!movies.isEmpty()) {
+            AiContextItem castItem = castInsightItem(movies.get(0));
+            addUnique(references, castItem);
+            if (castItem != null) {
+                addStep(steps, "补充首个电影的演职员线索。");
+            }
+            if (hasCommentIntent(query)) {
+                AiContextItem commentItem = commentInsightItem(movies.get(0), 20);
+                if (commentItem != null) {
+                    addUnique(references, commentItem);
+                    addStep(steps, "识别评论意图，补充评论洞察。");
+                }
+            }
+        }
+
+        if (!persons.isEmpty()) {
+            AiContextItem worksItem = personWorksItem(persons.get(0));
+            addUnique(references, worksItem);
+            if (worksItem != null) {
+                addStep(steps, "补充首个影人的代表作品线索。");
             }
         }
     }
@@ -122,6 +162,62 @@ public class AiRetrieveService {
         return movies == null ? new ArrayList<>() : movies;
     }
 
+    private List<Movie> findMoviesByKeywordCandidates(String query, String keyword, int limit) {
+        Map<String, Movie> movies = new LinkedHashMap<>();
+        for (String candidate : keywordCandidates(query, keyword)) {
+            ArrayList<Movie> rows = movieService.findMovieByKeyWords(candidate, Math.min(limit, 5), 0);
+            if (rows == null) {
+                continue;
+            }
+            for (Movie movie : rows) {
+                if (movie != null && !clean(movie.getMovieID()).isEmpty()) {
+                    movies.putIfAbsent(movie.getMovieID(), movie);
+                }
+            }
+            if (movies.size() >= limit) {
+                break;
+            }
+        }
+        return movies.values().stream().limit(limit).collect(Collectors.toList());
+    }
+
+    private List<Person> findPersonsByKeywordCandidates(String query, String keyword, int limit) {
+        Map<String, Person> persons = new LinkedHashMap<>();
+        for (String candidate : keywordCandidates(query, keyword)) {
+            ArrayList<Person> rows = personService.findPersonByKeywords(candidate, limit, 0);
+            if (rows == null) {
+                continue;
+            }
+            for (Person person : rows) {
+                if (person != null && !clean(person.getPersonID()).isEmpty()) {
+                    persons.putIfAbsent(person.getPersonID(), person);
+                }
+            }
+            if (persons.size() >= limit) {
+                break;
+            }
+        }
+        return persons.values().stream().limit(limit).collect(Collectors.toList());
+    }
+
+    private List<Person> narrowPrimaryPersons(List<Person> persons, String keyword) {
+        String target = clean(keyword);
+        if (target.isEmpty()) {
+            return persons;
+        }
+        List<Person> exactPersons = persons.stream()
+                .filter(person -> {
+                    String name = clean(person.getName());
+                    return name.equals(target)
+                            || name.startsWith(target + " ")
+                            || name.startsWith(target + "　")
+                            || name.startsWith(target);
+                })
+                .limit(1)
+                .collect(Collectors.toList());
+        return exactPersons.isEmpty() ? persons : exactPersons;
+    }
+
     private List<Person> safePersonSearch(String keyword, int limit) {
         if (keyword.isEmpty()) {
             return new ArrayList<>();
@@ -130,7 +226,7 @@ public class AiRetrieveService {
         return persons == null ? new ArrayList<>() : persons;
     }
 
-    private void addChartItems(List<AiContextItem> references, String query, String nickname) {
+    private void addChartItems(List<AiContextItem> references, String query, String nickname, List<String> steps) {
         addUnique(references, new AiContextItem(
                 "chart", "图表", "popular-by-year", "历年最受欢迎电影", "年度趋势",
                 "用于观察每一年最受欢迎影片与热度变化。", null, "/chart"
@@ -143,6 +239,7 @@ public class AiRetrieveService {
                 "profile", "画像", "user-profile", "我的画像", "用户偏好",
                 "用于把用户高频类型转成可解释的推荐理由。", null, "/chart"
         ));
+        addStep(steps, "加载图表解读基础线索。");
 
         String year = extractYear(query);
         if (!year.isEmpty()) {
@@ -153,11 +250,13 @@ public class AiRetrieveService {
                         popular.getName(), compactMovie(popular), popular.getImg(),
                         popular.getMovieID() == null ? "/chart" : "/movie/" + popular.getMovieID()
                 ));
+                addStep(steps, "查询 " + year + " 年最受欢迎电影。");
             }
             addUnique(references, new AiContextItem(
                     "chart", "年度类型", "genre-" + year, year + " 年类型数量",
                     "类型统计", topGenreSummary(chartService.getMovieTypeCounts(year)), null, "/chart"
             ));
+            addStep(steps, "查询 " + year + " 年类型数量结构。");
         }
 
         String profileSummary = profileSummary(nickname);
@@ -166,6 +265,7 @@ public class AiRetrieveService {
                     "profile", "画像", "profile-" + nickname, nickname + " 的偏好画像",
                     "高频类型", profileSummary, null, "/chart"
             ));
+            addStep(steps, "加载当前用户画像摘要。");
         }
     }
 
@@ -192,6 +292,86 @@ public class AiRetrieveService {
                 truncate(person.getSummary(), 140),
                 person.getImg(),
                 person.getPersonID() == null ? "" : "/person/" + person.getPersonID()
+        );
+    }
+
+    private AiContextItem castInsightItem(Movie movie) {
+        if (movie == null || clean(movie.getMovieID()).isEmpty()) {
+            return null;
+        }
+        ArrayList<Person> persons = personService.findPersonByMovie(movie.getMovieID(), 8, 0);
+        if (persons == null || persons.isEmpty()) {
+            return null;
+        }
+        String directors = persons.stream()
+                .filter(person -> clean(person.getRole()).contains("导演"))
+                .map(Person::getName)
+                .map(this::clean)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .limit(3)
+                .collect(Collectors.joining("、"));
+        String actors = persons.stream()
+                .filter(person -> clean(person.getRole()).contains("演员"))
+                .map(Person::getName)
+                .map(this::clean)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .limit(6)
+                .collect(Collectors.joining("、"));
+        String writers = persons.stream()
+                .filter(person -> clean(person.getRole()).contains("编剧"))
+                .map(Person::getName)
+                .map(this::clean)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .limit(3)
+                .collect(Collectors.joining("、"));
+        String description = joinParts(
+                directors.isEmpty() ? "" : "导演：" + directors,
+                writers.isEmpty() ? "" : "编剧：" + writers,
+                actors.isEmpty() ? "" : "演员：" + actors
+        );
+        if (description.isEmpty()) {
+            return null;
+        }
+        return new AiContextItem(
+                "cast",
+                "演职员",
+                "cast-" + movie.getMovieID(),
+                fallback(movie.getName(), "未命名电影") + " 的演职员线索",
+                "主创与主演",
+                truncate(description, 180),
+                null,
+                "/movie/" + movie.getMovieID()
+        );
+    }
+
+    private AiContextItem personWorksItem(Person person) {
+        if (person == null || clean(person.getPersonID()).isEmpty()) {
+            return null;
+        }
+        ArrayList<Movie> movies = personService.findMovieByPerson(person.getPersonID(), 6, 0);
+        if (movies == null || movies.isEmpty()) {
+            return null;
+        }
+        String works = movies.stream()
+                .map(this::compactWork)
+                .filter(item -> !item.isEmpty())
+                .limit(6)
+                .collect(Collectors.joining("；"));
+        if (works.isEmpty()) {
+            return null;
+        }
+        return new AiContextItem(
+                "work",
+                "代表作品",
+                "works-" + person.getPersonID(),
+                fallback(person.getName(), "未命名影人") + " 的代表作品",
+                movies.size() + " 部候选",
+                truncate(works, 220),
+                null,
+                "/person/" + person.getPersonID()
         );
     }
 
@@ -257,6 +437,13 @@ public class AiRetrieveService {
         }
     }
 
+    private void addStep(List<String> steps, String step) {
+        String text = clean(step);
+        if (!text.isEmpty()) {
+            steps.add(text);
+        }
+    }
+
     private String extractKeyword(String query) {
         Matcher titleMatcher = TITLE_PATTERN.matcher(query);
         if (titleMatcher.find()) {
@@ -275,6 +462,10 @@ public class AiRetrieveService {
                 .replace("类似", "")
                 .replace("相似", "")
                 .replace("像", "")
+                .replace("是谁", "")
+                .replace("是什么", "")
+                .replace("有哪些", "")
+                .replace("讲了什么", "")
                 .replace("高分", "")
                 .replace("评分高", "")
                 .replace("口碑好", "")
@@ -283,9 +474,68 @@ public class AiRetrieveService {
                 .replace("片", "")
                 .replace("影人", "")
                 .replace("资料", "")
+                .replace("简介", "")
+                .replace("介绍", "")
+                .replace("剧情", "")
+                .replace("主演", "")
+                .replace("导演", "")
+                .replace("代表作品", "")
+                .replace("作品", "")
+                .replace("演职员", "")
                 .replace("评论区", "")
                 .replace("主要观点", "");
         return truncate(compact, 16);
+    }
+
+    private List<String> keywordCandidates(String query, String keyword) {
+        Map<String, Boolean> candidates = new LinkedHashMap<>();
+        addCandidate(candidates, keyword, 24);
+
+        Matcher titleMatcher = TITLE_PATTERN.matcher(query);
+        while (titleMatcher.find()) {
+            addCandidate(candidates, titleMatcher.group(1), 24);
+        }
+
+        String compact = query.replaceAll("[\\s？?。！!，,、：:；;]", "");
+        List<String> stopWords = List.of(
+                "帮我", "查询", "总结", "推荐", "类似", "相似", "像", "一下",
+                "电影", "影片", "片子", "影人", "资料", "简介", "介绍", "剧情",
+                "评论区", "评论", "评价", "口碑", "主要观点", "主要", "观点",
+                "主演", "导演", "编剧", "演职员", "代表作品", "作品",
+                "是谁", "是什么", "有哪些", "讲了什么", "为什么", "如何", "怎么",
+                "高分", "评分高", "口碑好", "几部", "一些", "给我"
+        );
+        for (String stopWord : stopWords) {
+            compact = compact.replace(stopWord, "");
+        }
+        compact = compact.replaceAll("(19|20)\\d{2}", "");
+        addCandidate(candidates, compact, 24);
+
+        int possessive = query.indexOf("的");
+        if (possessive > 0 && possessive <= 12) {
+            addCandidate(candidates, query.substring(0, possessive), 24);
+        }
+        String simplified = query
+                .replace("帮我", "")
+                .replace("查询", "")
+                .replace("总结", "")
+                .replace("介绍", "")
+                .replace("一下", "")
+                .replaceAll("[\\s？?。！!，,、：:；;]", "");
+        int simplifiedPossessive = simplified.indexOf("的");
+        if (simplifiedPossessive > 0 && simplifiedPossessive <= 12) {
+            addCandidate(candidates, simplified.substring(0, simplifiedPossessive), 24);
+        }
+
+        return new ArrayList<>(candidates.keySet());
+    }
+
+    private void addCandidate(Map<String, Boolean> candidates, String value, int maxLength) {
+        String cleaned = clean(value);
+        String candidate = cleaned.length() > maxLength ? cleaned.substring(0, maxLength) : cleaned;
+        if (candidate.length() >= 2) {
+            candidates.putIfAbsent(candidate, true);
+        }
     }
 
     private String extractYear(String query) {
@@ -299,6 +549,16 @@ public class AiRetrieveService {
 
     private boolean hasCommentIntent(String query) {
         return query.contains("评论") || query.contains("评价") || query.contains("口碑") || query.contains("观点");
+    }
+
+    private boolean hasPersonPrimaryIntent(String query) {
+        return query.contains("代表作品")
+                || query.contains("作品")
+                || query.contains("参演")
+                || query.contains("出演")
+                || query.contains("演过")
+                || query.contains("影人资料")
+                || query.contains("演员资料");
     }
 
     private boolean wantsHighScore(String query) {
@@ -414,6 +674,18 @@ public class AiRetrieveService {
 
     private String compactMovie(Movie movie) {
         return joinParts(movie.getGenre(), movie.getRegion(), movie.getRate() == null ? "" : movie.getRate() + " 分");
+    }
+
+    private String compactWork(Movie movie) {
+        if (movie == null) {
+            return "";
+        }
+        return joinParts(
+                fallback(movie.getName(), "未命名电影"),
+                movie.getYear(),
+                movie.getGenre(),
+                movie.getRate() == null ? "" : movie.getRate() + " 分"
+        );
     }
 
     private String joinParts(String... parts) {

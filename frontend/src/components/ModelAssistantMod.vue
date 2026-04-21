@@ -168,6 +168,19 @@
         </div>
       </div>
 
+      <div v-if="currentRetrievalSteps.length" class="retrieval-steps">
+        <div class="retrieval-steps-head">
+          <DatabaseOutlined />
+          <strong>检索路径</strong>
+        </div>
+        <ol>
+          <li v-for="(step, index) in currentRetrievalSteps" :key="`${index}-${step}`">
+            <span>{{ index + 1 }}</span>
+            <p>{{ step }}</p>
+          </li>
+        </ol>
+      </div>
+
       <div v-if="currentMode === 'chart'" class="chart-embed">
         <div class="chart-embed-head">
           <strong>图表解读数据</strong>
@@ -398,10 +411,11 @@ const chartPanelRef = ref(null);
 const abortController = ref(null);
 const currentReferences = ref([]);
 const currentContextText = ref("");
+const currentRetrievalSteps = ref([]);
 const currentSessionId = ref(1);
 const nextSessionId = ref(2);
 const sessions = reactive([{ id: 1, title: "新对话", modeId: "" }]);
-const sessionStore = reactive({ 1: { messages: [], references: [], contextText: "", modeId: "" } });
+const sessionStore = reactive({ 1: { messages: [], references: [], contextText: "", retrievalSteps: [], modeId: "" } });
 const messages = ref([]);
 const chartView = ref("popular");
 const miniChartType = ref("喜剧");
@@ -485,6 +499,7 @@ const normalizeSessionState = (state = {}) => ({
   messages: cloneMessages(state.messages || []),
   references: Array.isArray(state.references) ? state.references.map((item) => ({ ...item })) : [],
   contextText: state.contextText || "",
+  retrievalSteps: Array.isArray(state.retrievalSteps) ? state.retrievalSteps.map((item) => String(item)) : [],
   modeId: modeById(state.modeId) ? state.modeId : inferModeFromMessages(state.messages || []),
 });
 
@@ -500,6 +515,7 @@ const writeCurrentSession = () => {
     messages: cloneMessages(messages.value),
     references: currentReferences.value.map((item) => ({ ...item })),
     contextText: currentContextText.value,
+    retrievalSteps: currentRetrievalSteps.value.map((item) => String(item)),
     modeId,
   };
 };
@@ -545,6 +561,7 @@ const loadStoredSessions = () => {
     messages.value = cloneMessages(state.messages || []);
     currentReferences.value = state.references.length ? state.references : currentMode.value === "chart" ? chartReferences() : [];
     currentContextText.value = state.contextText || "";
+    currentRetrievalSteps.value = state.retrievalSteps || [];
   } catch (error) {
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -566,6 +583,7 @@ const changeMode = (modeId) => {
   currentMode.value = modeId;
   currentReferences.value = modeId === "chart" ? chartReferences() : [];
   currentContextText.value = "";
+  currentRetrievalSteps.value = [];
 };
 
 const startNewChat = () => {
@@ -574,12 +592,13 @@ const startNewChat = () => {
   const id = nextSessionId.value;
   nextSessionId.value += 1;
   sessions.unshift({ id, title: "新对话", modeId: "" });
-  sessionStore[id] = { messages: [], references: [], contextText: "", modeId: "" };
+  sessionStore[id] = { messages: [], references: [], contextText: "", retrievalSteps: [], modeId: "" };
   currentSessionId.value = id;
   messages.value = [];
   inputContent.value = "";
   currentReferences.value = currentMode.value === "chart" ? chartReferences() : [];
   currentContextText.value = "";
+  currentRetrievalSteps.value = [];
   persistSessions();
   message.success("已开启新对话");
 };
@@ -601,6 +620,7 @@ const switchSession = (id) => {
       ? chartReferences()
       : [];
   currentContextText.value = state.contextText || "";
+  currentRetrievalSteps.value = state.retrievalSteps || [];
   scrollToBottom();
 };
 
@@ -616,11 +636,12 @@ const deleteSession = (id) => {
     const nextId = nextSessionId.value;
     nextSessionId.value += 1;
     sessions.push({ id: nextId, title: "新对话", modeId: "" });
-    sessionStore[nextId] = { messages: [], references: [], contextText: "", modeId: "" };
+    sessionStore[nextId] = { messages: [], references: [], contextText: "", retrievalSteps: [], modeId: "" };
     currentSessionId.value = nextId;
     messages.value = [];
     currentReferences.value = currentMode.value === "chart" ? chartReferences() : [];
     currentContextText.value = "";
+    currentRetrievalSteps.value = [];
   } else if (currentSessionId.value === id) {
     currentSessionId.value = sessions[0].id;
     const state = normalizeSessionState(sessionStore[currentSessionId.value] || {});
@@ -635,6 +656,7 @@ const deleteSession = (id) => {
         ? chartReferences()
         : [];
     currentContextText.value = state.contextText || "";
+    currentRetrievalSteps.value = state.retrievalSteps || [];
   }
 
   persistSessions();
@@ -855,6 +877,7 @@ const retrieveContext = async (content, mode, signal) => {
   );
   const data = response.data?.data || {};
   currentContextText.value = data.contextText || "";
+  currentRetrievalSteps.value = Array.isArray(data.retrievalSteps) ? data.retrievalSteps : [];
   return Array.isArray(data.references) ? data.references : [];
 };
 
@@ -1658,6 +1681,64 @@ button {
   margin: 5px 0 0;
   color: #687784;
   font-size: 13px;
+  line-height: 1.55;
+}
+
+.retrieval-steps {
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid #dfe7ec;
+  border-radius: var(--movie-radius);
+  background: #fff;
+}
+
+.retrieval-steps-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #0f7f83;
+}
+
+.retrieval-steps-head strong {
+  color: #17222b;
+  font-size: 14px;
+}
+
+.retrieval-steps ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.retrieval-steps li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.retrieval-steps li > span {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #0f7f83;
+  background: #e8f4f5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.retrieval-steps p {
+  min-width: 0;
+  margin: 1px 0 0;
+  color: #53616d;
+  font-size: 12px;
   line-height: 1.55;
 }
 

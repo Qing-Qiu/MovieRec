@@ -12,4 +12,5 @@ public class AiRetrieveResponse {
     private String mode;
     private String contextText;
     private List<AiContextItem> references = new ArrayList<>();
+    private List<String> retrievalSteps = new ArrayList<>();
 }
