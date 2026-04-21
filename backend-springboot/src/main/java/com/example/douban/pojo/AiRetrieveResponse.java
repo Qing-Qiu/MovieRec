@@ -13,4 +13,5 @@ public class AiRetrieveResponse {
     private String contextText;
     private List<AiContextItem> references = new ArrayList<>();
     private List<String> retrievalSteps = new ArrayList<>();
+    private List<AiToolCall> toolCalls = new ArrayList<>();
 }
