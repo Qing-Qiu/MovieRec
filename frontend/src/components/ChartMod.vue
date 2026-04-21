@@ -1,60 +1,90 @@
 <template>
   <div class="chart-container">
     <div class="header-section">
-      <h2 class="chart-title">数据可视化仪表盘</h2>
-      
       <div class="controls-wrapper">
-        <!-- Main Chart Type Selector -->
-        <a-segmented 
-          v-model:value="value" 
-          :options="data" 
-          @change="onChange()" 
-          class="main-chart-selector"
-          size="large"
-        >
-          <template #label="{ value: val }">
-            <span style="padding: 0 8px">{{ val }}</span>
-          </template>
-        </a-segmented>
+        <div class="main-chart-selector" role="tablist" aria-label="图表视图">
+          <button
+            v-for="item in chartOptions"
+            :key="item.value"
+            type="button"
+            class="chart-option"
+            :class="{ active: value === item.value }"
+            role="tab"
+            :aria-selected="value === item.value"
+            @click="setChartType(item.value)"
+          >
+            <span>{{ item.kicker }}</span>
+            <strong>{{ item.label }}</strong>
+          </button>
+        </div>
         
-        <!-- Bar Chart Filters (Type Selection) -->
         <div v-if="value==='历年各种类型电影数量（柱状图）'" class="filter-section">
-           <span class="filter-label">选择电影类型:</span>
-           <div class="pill-selector">
-             <div 
-                v-for="item in type" 
-                :key="item"
-                class="pill-item"
-                :class="{ active: value2 === item }"
-                @click="setBarType(item)"
-             >
-               {{ item }}
-             </div>
-           </div>
+          <div class="filter-head">
+            <span>筛选条件</span>
+            <strong>电影类型</strong>
+          </div>
+          <div class="pill-selector">
+            <button
+              v-for="item in type"
+              :key="item"
+              type="button"
+              class="pill-item"
+              :class="{ active: value2 === item }"
+              @click="setBarType(item)"
+            >
+              {{ item }}
+            </button>
+          </div>
         </div>
 
-        <!-- Pie Chart Filters (Year Selection) -->
         <div v-if="value === '历年各种类型电影数量（饼图）'" class="filter-section">
-           <span class="filter-label">选择年份:</span>
-           <div class="year-selector">
-              <a-select
-                  v-model:value="value3"
-                  show-search
-                  placeholder="选择年份"
-                  style="width: 140px"
-                  size="large"
-                  @change="onChange()"
-                  class="custom-select"
-              >
-                <a-select-option v-for="y in year" :key="y" :value="y">{{ y }}</a-select-option>
-              </a-select>
-           </div>
+          <div class="filter-head">
+            <span>筛选条件</span>
+            <strong>发行年份</strong>
+          </div>
+          <div class="year-selector">
+            <button
+              v-for="item in featuredYears"
+              :key="item"
+              type="button"
+              class="year-chip"
+              :class="{ active: value3 === item }"
+              @click="setPieYear(item)"
+            >
+              {{ item }}
+            </button>
+            <div class="custom-year-query">
+              <input
+                v-model.trim="customYear"
+                type="text"
+                inputmode="numeric"
+                maxlength="4"
+                placeholder="输入年份"
+                @keydown.enter="applyCustomYear"
+              />
+              <button type="button" @click="applyCustomYear">查询</button>
+            </div>
+          </div>
         </div>
 
         <!-- Word Cloud Filters (Shape Selection) -->
         <div v-if="value==='我的画像' && nickname" class="filter-section">
-             <span class="filter-label">词云形状:</span>
-             <a-segmented v-model:value="value4" :options="shapes" @change="onChange()" size="middle"></a-segmented>
+          <div class="filter-head">
+            <span>筛选条件</span>
+            <strong>词云形状</strong>
+          </div>
+          <div class="shape-selector">
+            <button
+              v-for="item in shapes"
+              :key="item"
+              type="button"
+              class="shape-chip"
+              :class="{ active: value4 === item }"
+              @click="setCloudShape(item)"
+            >
+              {{ item }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -90,6 +120,7 @@
 </template>
 <script>
 import axios from "axios";
+import { message } from "ant-design-vue";
 import router from "@/router/router";
 
 export default {
@@ -105,12 +136,18 @@ export default {
       chart: null,
       option: Object,
       loading: true,
-      data: ['历年最受欢迎电影', '历年各种类型电影数量（柱状图）', '历年各种类型电影数量（饼图）', '我的画像'],
+      chartOptions: [
+        { value: '历年最受欢迎电影', kicker: '热度', label: '年度热门' },
+        { value: '历年各种类型电影数量（柱状图）', kicker: '趋势', label: '类型柱图' },
+        { value: '历年各种类型电影数量（饼图）', kicker: '结构', label: '类型占比' },
+        { value: '我的画像', kicker: '偏好', label: '我的画像' },
+      ],
       value: '历年最受欢迎电影',
-      type: ['全部', '动作', '动画', '喜剧', '犯罪', '科幻', '历史', '音乐', '爱情', '悬疑', '惊悚', '其它'],
+      type: ['全部', '剧情', '动作', '动画', '喜剧', '犯罪', '科幻', '历史', '音乐', '爱情', '悬疑', '惊悚', '奇幻', '冒险', '家庭', '战争', '传记', '恐怖', '纪录片', '古装', '武侠', '运动', '其它'],
       year: [],
       value2: '全部',
       value3: '全部',
+      customYear: '',
       value4: '圆形',
       shapes: ['圆形', '心形', '菱形', '三角', '星形'],
       map: {
@@ -131,6 +168,11 @@ export default {
     }
   },
   computed: {
+    featuredYears() {
+      const presets = ['全部', '2015', '2014', '2013', '2012', '2011', '2010', '2008', '2005', '2000', '1995', '1990', '1985', '1980', '1975', '1970', '1960', '1950'];
+      const availableYears = new Set(this.year.map((item) => String(item)));
+      return presets.filter((item) => availableYears.has(item));
+    },
   },
   methods: {
     async onChange() {
@@ -156,6 +198,39 @@ export default {
     setBarType(type) {
       if (this.value2 === type) return;
       this.value2 = type;
+      this.onChange();
+    },
+    setPieYear(year) {
+      if (this.value3 === year) return;
+      this.value3 = year;
+      this.onChange();
+    },
+    applyCustomYear() {
+      const year = String(this.customYear || '').trim();
+      if (!/^\d{4}$/.test(year)) {
+        message.warning('请输入 4 位年份');
+        return;
+      }
+      const yearNumber = Number.parseInt(year, 10);
+      if (yearNumber < 1911 || yearNumber > 2015) {
+        message.warning('请输入 1911-2015 年之间的年份');
+        return;
+      }
+      const availableYears = new Set(this.year.map((item) => String(item)));
+      if (!availableYears.has(year)) {
+        message.warning('该年份暂无可视化数据');
+        return;
+      }
+      this.setPieYear(year);
+    },
+    setCloudShape(shape) {
+      if (this.value4 === shape) return;
+      this.value4 = shape;
+      this.onChange();
+    },
+    setChartType(type) {
+      if (this.value === type) return;
+      this.value = type;
       this.onChange();
     },
     async getGraph(id) {
@@ -198,39 +273,50 @@ export default {
         if (id !== this.requestId) return; // Check before drawing
         
         let movieName = this.movieName;
+        const formatMovieLabel = (value, size = 12) => {
+          const text = String(value || '');
+          return text.length > size ? `${text.slice(0, Math.max(1, size - 1))}...` : text;
+        };
         myChart.setOption({
           backgroundColor: 'transparent',
           tooltip: {
             trigger: 'axis',
             axisPointer: { type: 'shadow' },
+            appendToBody: true,
+            confine: false,
             backgroundColor: 'rgba(255, 255, 255, 0.9)',
             borderColor: '#eee',
             borderWidth: 1,
+            extraCssText: 'max-width:320px;box-shadow:0 14px 32px rgba(17,24,32,.12);border-radius:8px;padding:10px 12px;z-index:3000;',
             textStyle: { color: '#333' },
             formatter: function (params) {
-              let tooltip = `<div style="font-weight:bold;margin-bottom:5px;">${params[0].name}年</div>`;
-              for (let i = 0; i < params.length; i++) {
-                tooltip += `<div style="display:flex;justify-content:space-between;align-items:center;">
-                              <span>${params[i].marker} ${params[i].seriesName}</span>
-                              <span style="font-weight:bold;margin-left:10px;">${params[i].value}</span>
-                            </div>`;
-                tooltip += `<div style="font-size:12px;color:#666;margin-top:2px;">Most Popular: ${movieName[params[i].dataIndex]}</div>`;
-              }
-              return tooltip;
+              const item = Array.isArray(params) ? params[0] : params;
+              const escapeText = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+              const name = escapeText(item?.name || '');
+              const seriesName = escapeText(item?.seriesName || '观看人数');
+              const value = escapeText(item?.value ?? 0);
+              const movie = escapeText(movieName[item?.dataIndex] || '暂无片名');
+              return `<div style="font-weight:bold;margin-bottom:6px;">${name}年</div>
+                      <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;">
+                        <span>${item?.marker || ''} ${seriesName}</span>
+                        <span style="font-weight:bold;">${value}</span>
+                      </div>
+                      <div style="font-size:12px;color:#666;margin-top:4px;">热门电影：${movie}</div>`;
             },
           },
           grid: {
-            top: '80px',
+            top: '28px',
             left: '3%',
             right: '4%',
             bottom: '3%',
             containLabel: true
           },
-          legend: {
-            data: ['观看人数'],
-            top: 40,
-            textStyle: { color: '#666' }
-          },
+          legend: { show: false, selectedMode: false },
           xAxis: {
             data: this.category,
             axisLine: { lineStyle: { color: '#ccc' } },
@@ -255,6 +341,47 @@ export default {
                 ])
               },
               emphasis: {
+                 label: {
+                    show: true,
+                    position: 'top',
+                    distance: 10,
+                    color: '#17222b',
+                    fontSize: 11,
+                    lineHeight: 19,
+                    fontWeight: 800,
+                    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                    borderColor: 'rgba(15, 127, 131, 0.18)',
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    padding: [6, 9],
+                    shadowBlur: 12,
+                    shadowColor: 'rgba(17, 24, 32, 0.12)',
+                    formatter: function (params) {
+                      const year = params.name || '';
+                      const title = formatMovieLabel(movieName[params.dataIndex], 16);
+                      return `{year|${year} 年}  {value|${params.value}}\n{movie|${title}}`;
+                    },
+                    rich: {
+                      year: {
+                        color: '#0f7f83',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        lineHeight: 18,
+                      },
+                      value: {
+                        color: '#6c7a86',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        lineHeight: 18,
+                      },
+                      movie: {
+                        color: '#17222b',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        lineHeight: 20,
+                      },
+                    },
+                 },
                  itemStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
                       { offset: 0, color: '#9f2f37' },
@@ -265,15 +392,7 @@ export default {
               data: this.barData,
             },
           ],
-          title: {
-            text: '1911-2015年最受欢迎电影及观看人数',
-            left: 'center',
-            textStyle: {
-              color: '#333',
-              fontSize: 18,
-              fontWeight: 600
-            }
-          }
+          title: { show: false }
         });
       } else if (this.value === '历年各种类型电影数量（柱状图）') {
         try {
@@ -304,17 +423,13 @@ export default {
             textStyle: { color: '#333' }
           },
            grid: {
-            top: '80px',
+            top: '28px',
             left: '3%',
             right: '4%',
             bottom: '3%',
             containLabel: true
           },
-          legend: {
-            data: ['发行数'],
-            top: 40,
-            textStyle: { color: '#666' }
-          },
+          legend: { show: false, selectedMode: false },
           xAxis: {
             data: this.category,
             axisLine: { lineStyle: { color: '#ccc' } },
@@ -349,15 +464,7 @@ export default {
               data: this.barData,
             },
           ],
-          title: {
-            text: '1911-2015年' + this.value2 + ((this.value2 === '全部') ? '' : '类') + '电影发行总数',
-            left: 'center',
-            textStyle: {
-              color: '#333',
-              fontSize: 18,
-              fontWeight: 600
-            }
-          }
+          title: { show: false }
         });
       } else if (this.value === '历年各种类型电影数量（饼图）') {
         try {
@@ -394,6 +501,7 @@ export default {
           legend: {
             type: 'scroll',
             orient: 'vertical',
+            selectedMode: false,
             right: 10,
             top: 20,
             bottom: 20,
@@ -429,15 +537,7 @@ export default {
               data: this.pieData,
             },
           ],
-          title: {
-            text: (this.value3 === '全部' ? '历' : this.value3) + '年各类型电影发行占比',
-            left: 'center',
-             textStyle: {
-              color: '#333',
-              fontSize: 18,
-              fontWeight: 600
-            }
-          }
+          title: { show: false }
         });
       } else if (this.value === '我的画像') {
         try {
@@ -551,10 +651,10 @@ export default {
   border: 1px solid var(--movie-line);
   border-radius: var(--movie-radius);
   box-shadow: var(--movie-shadow-sm);
-  padding: 28px;
+  padding: 18px;
   max-width: 1400px;
   margin: 8px auto 32px;
-  min-height: 650px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -563,78 +663,118 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 32px;
+  justify-content: flex-start;
+  min-height: 0;
+  margin-bottom: 14px;
   width: 100%;
-}
-
-.chart-title {
-  font-size: 28px;
-  color: var(--movie-ink);
-  margin-bottom: 24px;
-  font-weight: 700;
-  letter-spacing: 0;
 }
 
 .controls-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   width: 100%;
-  max-width: 1000px;
+  max-width: 1100px;
+  min-height: 0;
 }
 
-/* Main Chart Selector Style Override */
 .main-chart-selector {
-  background-color: var(--movie-surface-soft);
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.chart-option {
+  height: 52px;
+  padding: 8px 12px;
   border: 1px solid var(--movie-line);
-  padding: 4px;
   border-radius: var(--movie-radius);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+  color: #566572;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fafb 100%);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
-:deep(.ant-segmented-item-selected) {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
-  background-color: #fff !important;
-  color: var(--movie-accent) !important;
-  border-radius: 8px !important;
+.chart-option:hover {
+  color: #0f7f83;
+  border-color: rgba(15, 127, 131, 0.28);
+  box-shadow: 0 10px 24px rgba(17, 24, 32, 0.06);
+  transform: translateY(-1px);
 }
 
-:deep(.ant-segmented-item) {
-  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+.chart-option.active {
+  color: #0f7f83;
+  border-color: rgba(15, 127, 131, 0.36);
+  background: #eef8f8;
+  box-shadow: 0 12px 26px rgba(15, 127, 131, 0.1);
+}
+
+.chart-option span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8a98a3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chart-option strong {
+  display: block;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 800;
 }
 
 .filter-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: start;
   gap: 12px;
   width: 100%;
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid #dfe7ec;
+  border-radius: var(--movie-radius);
+  background: #f8fbfc;
   animation: fadeIn 0.4s ease-out;
 }
 
-.filter-label {
-  font-size: 14px;
-  color: var(--movie-muted);
-  font-weight: 500;
-  letter-spacing: 0;
+.filter-head {
+  padding: 4px 0;
 }
 
-/* Pill Selector for Movie Types */
+.filter-head span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8a98a3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filter-head strong {
+  display: block;
+  color: #17222b;
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .pill-selector {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  padding: 8px;
+  gap: 6px;
+  justify-content: flex-start;
 }
 
 .pill-item {
-  padding: 6px 16px;
-  border-radius: var(--movie-radius);
-  font-size: 14px;
-  color: var(--movie-ink);
-  background-color: var(--movie-surface-soft);
+  min-height: 30px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: #4f5f6b;
+  background-color: #fff;
   cursor: pointer;
   transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   border: 1px solid var(--movie-line);
@@ -642,28 +782,126 @@ export default {
 }
 
 .pill-item:hover {
-  background-color: rgba(196, 59, 69, 0.08);
-  border-color: rgba(196, 59, 69, 0.22);
-  color: var(--movie-accent);
+  background-color: #eef8f8;
+  border-color: rgba(15, 127, 131, 0.24);
+  color: #0f7f83;
 }
 
 .pill-item.active {
-  background: var(--movie-accent);
-  border-color: var(--movie-accent);
+  background: #0f7f83;
+  border-color: #0f7f83;
   color: #fff;
-  box-shadow: 0 6px 14px rgba(196, 59, 69, 0.22);
-  font-weight: 500;
+  box-shadow: 0 8px 18px rgba(15, 127, 131, 0.18);
+  font-weight: 800;
 }
 
-/* Custom Select Styling */
-:deep(.ant-select-selector) {
-  border-radius: var(--movie-radius) !important;
-  border-color: var(--movie-line) !important;
-  box-shadow: 0 2px 0 rgba(0,0,0,0.02) !important;
+.year-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
-:deep(.ant-select-focused .ant-select-selector) {
-  border-color: var(--movie-accent) !important;
-  box-shadow: 0 0 0 3px rgba(196, 59, 69, 0.12) !important;
+
+.year-chip {
+  min-width: 58px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--movie-line);
+  border-radius: 999px;
+  color: #4f5f6b;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.year-chip:hover {
+  color: #0f7f83;
+  border-color: rgba(15, 127, 131, 0.24);
+  background: #eef8f8;
+}
+
+.year-chip.active {
+  color: #fff;
+  border-color: #0f7f83;
+  background: #0f7f83;
+  box-shadow: 0 8px 18px rgba(15, 127, 131, 0.18);
+}
+
+.custom-year-query {
+  display: inline-grid;
+  grid-template-columns: minmax(86px, 112px) auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.custom-year-query input {
+  width: 100%;
+  height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--movie-line);
+  border-radius: 999px;
+  color: #17222b;
+  background: #fff;
+  outline: none;
+  font-weight: 700;
+}
+
+.custom-year-query input:focus {
+  border-color: rgba(15, 127, 131, 0.42);
+  box-shadow: 0 0 0 3px rgba(15, 127, 131, 0.08);
+}
+
+.custom-year-query button {
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid #0f7f83;
+  border-radius: 999px;
+  color: #fff;
+  background: #0f7f83;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.custom-year-query button:hover {
+  background: #0c6f73;
+  box-shadow: 0 8px 18px rgba(15, 127, 131, 0.18);
+}
+
+.shape-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.shape-chip {
+  min-width: 66px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--movie-line);
+  border-radius: 999px;
+  color: #4f5f6b;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shape-chip:hover {
+  color: #0f7f83;
+  border-color: rgba(15, 127, 131, 0.24);
+  background: #eef8f8;
+}
+
+.shape-chip.active {
+  color: #fff;
+  border-color: #0f7f83;
+  background: #0f7f83;
+  box-shadow: 0 8px 18px rgba(15, 127, 131, 0.18);
 }
 
 /* Login Prompt */
@@ -679,6 +917,8 @@ export default {
 
 .chart-display-area {
   width: 100%;
+  flex: 1;
+  min-height: 0;
   position: relative;
   background: #ffffff;
   border-radius: var(--movie-radius);
@@ -686,7 +926,7 @@ export default {
 
 .graph-content {
   width: 100%;
-  height: 600px;
+  height: 460px;
   border-radius: var(--movie-radius);
   margin: 0 auto;
 }
@@ -703,7 +943,7 @@ export default {
 /* Guest State Styles */
 .guest-state {
   width: 100%;
-  height: 600px;
+  height: 460px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -766,18 +1006,23 @@ export default {
     padding: 20px 16px;
   }
 
-  .chart-title {
-    font-size: 24px;
+  .main-chart-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main-chart-selector {
-    max-width: 100%;
-    overflow-x: auto;
+  .filter-section {
+    grid-template-columns: 1fr;
   }
 
   .graph-content,
   .guest-state {
     height: 480px;
+  }
+}
+
+@media (max-width: 520px) {
+  .main-chart-selector {
+    grid-template-columns: 1fr;
   }
 }
 </style>

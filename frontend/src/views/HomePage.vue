@@ -23,25 +23,18 @@
             <template #icon><PlayCircleOutlined /></template>
             <span>电影中心</span>
           </a-menu-item>
-          
-          <a-sub-menu key="3">
-            <template #icon><AppstoreOutlined /></template>
-            <template #title>功能中心</template>
-            <a-menu-item key="3-1" @click="handleMenuClick('3-1')">
-              <template #icon><SettingOutlined /></template>
-              <span>大模型展示</span>
-            </a-menu-item>
-            <a-menu-item key="3-2" @click="handleMenuClick('3-2')">
-              <template #icon><BarChartOutlined /></template>
-              <span>数据可视化</span>
-            </a-menu-item>
-            <a-menu-item key="3-3" @click="handleMenuClick('3-3')">
-              <template #icon><CustomerServiceOutlined /></template>
-              <span>音乐播放</span>
-            </a-menu-item>
-          </a-sub-menu>
+
+          <a-menu-item key="3" @click="handleMenuClick('3')">
+            <template #icon><RobotOutlined /></template>
+            <span>电影助手</span>
+          </a-menu-item>
 
           <a-menu-item key="4" @click="handleMenuClick('4')">
+            <template #icon><CustomerServiceOutlined /></template>
+            <span>音乐中心</span>
+          </a-menu-item>
+
+          <a-menu-item key="5" @click="handleMenuClick('5')">
             <template #icon><GithubOutlined /></template>
             <span>关于项目</span>
           </a-menu-item>
@@ -68,7 +61,7 @@
                 <a-menu-item key="profile">
                   <UserOutlined /> 个人中心
                 </a-menu-item>
-                <a-menu-item key="logout" @click="handleMenuClick('5')">
+                <a-menu-item key="logout" @click="handleMenuClick('6')">
                   <LogoutOutlined /> 退出登录
                 </a-menu-item>
               </a-menu>
@@ -89,12 +82,10 @@
 <script>
 import {
   PlayCircleOutlined,
-  SettingOutlined,
-  BarChartOutlined,
   HomeOutlined,
   CustomerServiceOutlined,
   GithubOutlined,
-  AppstoreOutlined,
+  RobotOutlined,
   UserOutlined,
   LogoutOutlined
 } from "@ant-design/icons-vue";
@@ -103,12 +94,10 @@ import router from "@/router/router";
 export default {
   components: {
     PlayCircleOutlined,
-    SettingOutlined,
-    BarChartOutlined,
     CustomerServiceOutlined,
     GithubOutlined,
     HomeOutlined,
-    AppstoreOutlined,
+    RobotOutlined,
     UserOutlined,
     LogoutOutlined
   },
@@ -130,19 +119,16 @@ export default {
         case '2':
           router.push({path: '/center'});
           break;
-        case '3-1':
+        case '3':
           router.push({path: '/model'});
           break;
-        case '3-2':
-          router.push({path: '/chart'});
-          break;
-        case '3-3':
+        case '4':
           router.push({path: '/music'});
           break;
-        case '4':
+        case '5':
           window.open('https://github.com/Qing-Qiu/MovieRec', '_blank');
           break;
-        case '5':
+        case '6':
           sessionStorage.clear();
           this.username = '';
           this.nickname = '';

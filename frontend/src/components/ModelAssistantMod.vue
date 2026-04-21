@@ -2,7 +2,7 @@
   <div class="ai-shell">
     <div class="ai-page">
     <aside class="ai-side">
-      <div class="side-brand"><RobotOutlined /> MovieRec AI</div>
+      <div class="side-brand"><RobotOutlined /> 电影助手</div>
       <button type="button" class="new-chat" @click="startNewChat">
         <PlusOutlined /> 新对话
       </button>
@@ -38,15 +38,12 @@
             class="mode-tab"
             :class="{ active: currentMode === item.id, disabled: isModeLocked && currentMode !== item.id }"
             :disabled="isModeLocked && currentMode !== item.id"
-            :title="isModeLocked && currentMode !== item.id ? '当前对话已锁定模式，请新建对话切换' : item.name"
+            :title="item.name"
             @click="changeMode(item.id)"
           >
             <component :is="item.icon" />
             <span>{{ item.name }}</span>
           </button>
-        </div>
-        <div v-if="isModeLocked" class="mode-lock-note">
-          本对话已锁定为 {{ activeMode.name }}，新建对话后可切换模式。
         </div>
       </header>
 
@@ -187,8 +184,57 @@
             {{ item.name }}
           </button>
         </div>
-        <div ref="chartPanelRef" class="mini-chart"></div>
-        <div v-if="chartLoading" class="chart-loading-note">图表加载中...</div>
+        <div class="chart-mini-filter" :class="{ popular: chartView === 'popular' }">
+          <template v-if="chartView === 'trend'">
+            <button
+              v-for="item in miniChartTypes"
+              :key="item"
+              type="button"
+              :class="{ active: miniChartType === item }"
+              @click="miniChartType = item"
+            >
+              {{ item }}
+            </button>
+          </template>
+          <template v-else-if="chartView === 'genre'">
+            <button
+              v-for="item in miniChartYears"
+              :key="item"
+              type="button"
+              :class="{ active: miniChartYear === item }"
+              @click="miniChartYear = item"
+            >
+              {{ item }}
+            </button>
+          </template>
+          <template v-else>
+            <div class="mini-year-query">
+              <span>查询年份</span>
+              <input
+                v-model.trim="miniPopularInput"
+                type="text"
+                inputmode="numeric"
+                maxlength="4"
+                placeholder="2010"
+                @keydown.enter="applyMiniPopularYear"
+              />
+              <button type="button" @click="applyMiniPopularYear">查询</button>
+            </div>
+            <strong v-if="miniPopularMovie" class="mini-popular-result" :title="`${miniPopularYear}：${miniPopularMovie}`">
+              <span class="mini-result-year">{{ miniPopularYear }}</span>
+              <span class="mini-result-title">{{ miniPopularMovie }}</span>
+            </strong>
+            <strong v-else-if="miniPopularHint" class="mini-popular-result error" :title="miniPopularHint">
+              <span class="mini-result-title">{{ miniPopularHint }}</span>
+            </strong>
+          </template>
+        </div>
+        <div class="mini-chart-frame">
+          <div ref="chartPanelRef" class="mini-chart"></div>
+          <div v-if="chartLoading" class="mini-chart-loading">
+            <i></i><i></i><i></i>
+          </div>
+        </div>
       </div>
 
       <div v-if="latestReferences.length" class="context-list">
@@ -220,7 +266,7 @@
         <header class="chart-modal-head">
           <div>
             <span class="eyebrow">图表解读</span>
-            <h2>数据可视化完整视图</h2>
+            <h2>图表全览</h2>
           </div>
           <button type="button" class="chart-modal-close" @click="closeChartModal">关闭</button>
         </header>
@@ -265,6 +311,8 @@ const chartTabs = [
   { id: "trend", name: "类型趋势" },
   { id: "genre", name: "类型结构" },
 ];
+const miniChartTypes = ["全部", "剧情", "喜剧", "动作", "爱情", "悬疑", "科幻", "动画"];
+const miniChartYears = ["全部", "2015", "2012", "2010", "2008", "2005", "2000", "1990"];
 
 const modes = [
   {
@@ -356,6 +404,12 @@ const sessions = reactive([{ id: 1, title: "新对话", modeId: "" }]);
 const sessionStore = reactive({ 1: { messages: [], references: [], contextText: "", modeId: "" } });
 const messages = ref([]);
 const chartView = ref("popular");
+const miniChartType = ref("喜剧");
+const miniChartYear = ref("2010");
+const miniPopularInput = ref("2010");
+const miniPopularYear = ref("2010");
+const miniPopularMovie = ref("");
+const miniPopularHint = ref("");
 const chartLoading = ref(false);
 const chartModalOpen = ref(false);
 let chartInstance = null;
@@ -400,7 +454,7 @@ onBeforeUnmount(() => {
   }
 });
 
-watch([currentMode, chartView], () => {
+watch([currentMode, chartView, miniChartType, miniChartYear, miniPopularYear], () => {
   if (currentMode.value === "chart") {
     renderChartPanel();
   }
@@ -507,7 +561,6 @@ const scrollToBottom = () => {
 const changeMode = (modeId) => {
   if (isModeLocked.value && modeId !== lockedModeId.value) {
     currentMode.value = lockedModeId.value;
-    message.warning("当前对话已锁定模式，请新建对话后再切换。");
     return;
   }
   currentMode.value = modeId;
@@ -604,7 +657,6 @@ const sendMessage = async () => {
   if (!content || loading.value) return;
   if (isModeLocked.value && lockedModeId.value !== currentMode.value) {
     currentMode.value = lockedModeId.value;
-    message.warning("当前对话已锁定模式，请继续使用原模式。");
     return;
   }
   const mode = activeMode.value;
@@ -817,6 +869,37 @@ const chartReferences = () => [
   { type: "chart", typeLabel: "画像", title: "我的画像", meta: "用户偏好", description: "可用于把高频类型解释成个性化推荐理由。", route: "/chart" },
 ];
 
+const compactAxisLabel = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return value;
+  if (Math.abs(number) >= 10000) return `${Math.round(number / 10000)}万`;
+  return `${number}`;
+};
+
+const normalizeYear = (value) => String(value || "").trim();
+const isSupportedChartYear = (value) => {
+  const year = Number.parseInt(normalizeYear(value), 10);
+  return /^\d{4}$/.test(normalizeYear(value)) && year >= 1911 && year <= 2015;
+};
+const escapeHtml = (value) =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const applyMiniPopularYear = () => {
+  const value = normalizeYear(miniPopularInput.value);
+  if (!isSupportedChartYear(value)) {
+    miniPopularMovie.value = "";
+    miniPopularHint.value = "请输入 1911-2015 年";
+    return;
+  }
+  miniPopularHint.value = "";
+  miniPopularYear.value = value;
+};
+
 const renderChartPanel = async () => {
   await nextTick();
   const target = chartPanelRef.value;
@@ -855,31 +938,66 @@ const renderChartPanel = async () => {
 const renderPopularChart = async () => {
   const response = await axios.post("http://localhost:8080/chart/chart1", {});
   const rows = Array.isArray(response.data) ? response.data : [];
-  const sample = rows.slice(-12);
+  const selectedYear = normalizeYear(miniPopularYear.value);
+  const selectedIndex = rows.findIndex((item) => normalizeYear(item.year) === selectedYear);
+  if (!rows.length) {
+    miniPopularMovie.value = "";
+    miniPopularHint.value = "暂无图表数据";
+  } else if (selectedIndex < 0) {
+    miniPopularMovie.value = "";
+    miniPopularHint.value = `${selectedYear} 年暂无数据`;
+  } else {
+    miniPopularMovie.value = rows[selectedIndex]?.name || "暂无片名";
+    miniPopularHint.value = "";
+  }
+  const start = selectedIndex >= 0
+    ? Math.max(0, Math.min(rows.length - 12, selectedIndex - 5))
+    : Math.max(0, rows.length - 12);
+  const sample = rows.slice(start, start + 12);
   chartInstance.setOption({
-    grid: { top: 20, left: 36, right: 14, bottom: 38 },
-    tooltip: { trigger: "axis" },
-    xAxis: { type: "category", data: sample.map((item) => item.year), axisLabel: { fontSize: 10, interval: 1 } },
-    yAxis: { type: "value", axisLabel: { fontSize: 10 } },
+    grid: { top: 20, left: 4, right: 10, bottom: 30, containLabel: true },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      appendToBody: true,
+      confine: false,
+      extraCssText: "max-width:280px;white-space:normal;box-shadow:0 14px 32px rgba(17,24,32,.12);border-radius:8px;padding:10px 12px;z-index:3000;",
+      formatter(params) {
+        const point = Array.isArray(params) ? params[0] : params;
+        const row = sample[point?.dataIndex] || {};
+        return [
+          `<div style="font-weight:800;margin-bottom:4px;">${escapeHtml(row.year || point?.name)} 年</div>`,
+          `<div>观看人数：${escapeHtml(point?.value ?? row.popular ?? 0)}</div>`,
+          `<div>热门电影：${escapeHtml(row.name || "暂无片名")}</div>`,
+        ].join("");
+      },
+    },
+    xAxis: { type: "category", data: sample.map((item) => item.year), axisLabel: { fontSize: 10, interval: 1, color: "#6c7a86" } },
+    yAxis: { type: "value", axisLabel: { fontSize: 10, color: "#6c7a86", formatter: compactAxisLabel } },
     series: [{
+      name: "观看人数",
       type: "bar",
       data: sample.map((item) => Number.parseInt(item.popular, 10) || 0),
-      itemStyle: { color: "#c43b45", borderRadius: [3, 3, 0, 0] },
+      itemStyle: {
+        color: (params) => (normalizeYear(sample[params.dataIndex]?.year) === selectedYear ? "#0f7f83" : "#c43b45"),
+        borderRadius: [3, 3, 0, 0],
+      },
     }],
   }, true);
 };
 
 const renderTrendChart = async () => {
-  const response = await axios.post("http://localhost:8080/chart/chart2", { tag: "喜剧" });
+  const tag = miniChartType.value === "全部" ? "" : miniChartType.value;
+  const response = await axios.post("http://localhost:8080/chart/chart2", { tag });
   const rows = Array.isArray(response.data) ? response.data : [];
   const sample = rows.slice(-18);
   chartInstance.setOption({
-    grid: { top: 20, left: 36, right: 14, bottom: 38 },
+    grid: { top: 20, left: 4, right: 10, bottom: 30, containLabel: true },
     tooltip: { trigger: "axis" },
-    xAxis: { type: "category", data: sample.map((item) => item.year), axisLabel: { fontSize: 10, interval: 2 } },
-    yAxis: { type: "value", axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: sample.map((item) => item.year), axisLabel: { fontSize: 10, interval: 2, color: "#6c7a86" } },
+    yAxis: { type: "value", axisLabel: { fontSize: 10, color: "#6c7a86", formatter: compactAxisLabel } },
     series: [{
-      name: "喜剧发行数",
+      name: miniChartType.value === "全部" ? "发行数" : `${miniChartType.value}发行数`,
       type: "line",
       smooth: true,
       symbolSize: 5,
@@ -892,7 +1010,7 @@ const renderTrendChart = async () => {
 };
 
 const renderGenreChart = async () => {
-  const response = await axios.post("http://localhost:8080/chart/chart3", { year: "2010" });
+  const response = await axios.post("http://localhost:8080/chart/chart3", { year: miniChartYear.value });
   const rows = Array.isArray(response.data) ? response.data : [];
   const pieData = rows
     .map((item) => ({ name: item.genre, value: Number.parseInt(item.movieID, 10) || 0 }))
@@ -1027,6 +1145,7 @@ button {
   color: rgba(238, 244, 246, 0.76);
   background: transparent;
   text-align: left;
+  overflow: visible;
 }
 
 .session-item:hover,
@@ -1046,9 +1165,18 @@ button {
   color: inherit;
   background: transparent;
   text-align: left;
+  overflow: hidden;
+}
+
+.session-open .anticon {
+  width: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  justify-content: center;
 }
 
 .session-open span {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1086,6 +1214,7 @@ button {
 }
 
 .ai-header {
+  min-height: 154px;
   padding: 22px 28px 18px;
   background: rgba(255, 255, 255, 0.9);
   border-bottom: 1px solid var(--movie-line);
@@ -1117,6 +1246,7 @@ button {
 
 .mode-tab {
   height: 44px;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1134,6 +1264,12 @@ button {
   border-color: rgba(15, 127, 131, 0.22);
 }
 
+.mode-tab span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .mode-tab.disabled,
 .mode-tab.disabled:hover {
   color: #95a2ac;
@@ -1141,18 +1277,6 @@ button {
   border-color: transparent;
   cursor: not-allowed;
   opacity: 0.64;
-}
-
-.mode-lock-note {
-  display: inline-flex;
-  margin-top: 12px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  color: #61707c;
-  background: #f4f7f8;
-  border: 1px solid #dfe7ec;
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .chat-scroll {
@@ -1186,6 +1310,7 @@ button {
 }
 
 .empty-state h2 {
+  min-height: 36px;
   margin: 0 0 10px;
   color: #111820;
   font-size: 28px;
@@ -1193,19 +1318,27 @@ button {
 }
 
 .empty-state p {
+  min-height: 44px;
+  max-width: 680px;
   margin: 0;
+  align-self: center;
   color: #687784;
+  line-height: 1.65;
 }
 
 .prompt-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
   gap: 14px;
   margin-top: 28px;
 }
 
 .prompt-card {
-  min-height: 126px;
+  height: 150px;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
   padding: 18px;
   border-radius: var(--movie-radius);
   color: #1f2d37;
@@ -1214,6 +1347,7 @@ button {
   text-align: left;
   line-height: 1.55;
   box-shadow: 0 8px 24px rgba(17, 24, 32, 0.05);
+  overflow: hidden;
 }
 
 .prompt-card:hover {
@@ -1580,6 +1714,125 @@ button {
   background: #e8f4f5;
 }
 
+.chart-mini-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 72px;
+  margin-bottom: 10px;
+}
+
+.chart-mini-filter.popular {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.chart-mini-filter span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+}
+
+.chart-mini-filter button {
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid #d9e4e9;
+  border-radius: 999px;
+  color: #60707c;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.chart-mini-filter button.active {
+  color: #fff;
+  border-color: #0f7f83;
+  background: #0f7f83;
+}
+
+.mini-year-query {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  color: #60707c;
+  font-size: 12px;
+}
+
+.mini-year-query input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 9px;
+  border: 1px solid #d9e4e9;
+  border-radius: 999px;
+  color: #17222b;
+  background: #fff;
+  outline: none;
+  font-weight: 700;
+}
+
+.mini-year-query input:focus {
+  border-color: rgba(15, 127, 131, 0.45);
+  box-shadow: 0 0 0 3px rgba(15, 127, 131, 0.08);
+}
+
+.mini-year-query button {
+  border-radius: 999px;
+  color: #fff;
+  border-color: #0f7f83;
+  background: #0f7f83;
+  font-weight: 800;
+}
+
+.mini-popular-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  overflow: hidden;
+  color: #17222b;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 800;
+  border: 1px solid #dce9ec;
+  border-radius: 999px;
+  background: #f8fbfc;
+}
+
+.mini-popular-result.error {
+  grid-template-columns: minmax(0, 1fr);
+  color: #c43b45;
+}
+
+.mini-result-year {
+  min-width: 0;
+  color: #0f7f83;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-result-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mini-chart-frame {
+  position: relative;
+}
+
 .mini-chart {
   width: 100%;
   height: 240px;
@@ -1587,11 +1840,31 @@ button {
   background: #fff;
 }
 
-.chart-loading-note {
-  margin-top: 8px;
-  color: #687784;
-  font-size: 12px;
-  text-align: center;
+.mini-chart-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.mini-chart-loading i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0f7f83;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.mini-chart-loading i:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.mini-chart-loading i:nth-child(2) {
+  animation-delay: -0.16s;
 }
 
 .context-list {
@@ -1691,6 +1964,7 @@ button {
 
 .chart-modal {
   width: min(1180px, calc(100vw - 56px));
+  height: min(830px, calc(100vh - 56px));
   max-height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
@@ -1705,7 +1979,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 22px;
+  padding: 14px 20px;
   background: #fff;
   border-bottom: 1px solid var(--movie-line);
 }
@@ -1734,18 +2008,82 @@ button {
 }
 
 .chart-modal-body {
+  flex: 1;
+  display: flex;
   min-height: 0;
-  overflow: auto;
-  padding: 18px;
+  overflow: hidden;
+  padding: 14px;
   background: #f5f7f9;
 }
 
 .chart-modal-body :deep(.chart-container) {
+  width: 100%;
+  height: 100%;
   margin: 0;
   max-width: none;
   min-height: auto;
+  padding: 14px;
   border: 0;
   box-shadow: none;
+}
+
+.chart-modal-body :deep(.header-section) {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+}
+
+.chart-modal-body :deep(.controls-wrapper) {
+  gap: 10px;
+}
+
+.chart-modal-body :deep(.chart-option) {
+  height: 46px;
+  padding: 7px 10px;
+}
+
+.chart-modal-body :deep(.chart-option span) {
+  margin-bottom: 2px;
+}
+
+.chart-modal-body :deep(.filter-section) {
+  padding: 9px 10px;
+}
+
+.chart-modal-body :deep(.pill-item),
+.chart-modal-body :deep(.year-chip),
+.chart-modal-body :deep(.shape-chip) {
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 12px;
+}
+
+.chart-modal-body :deep(.custom-year-query) {
+  grid-template-columns: minmax(76px, 96px) auto;
+}
+
+.chart-modal-body :deep(.custom-year-query input),
+.chart-modal-body :deep(.custom-year-query button) {
+  height: 26px;
+  min-height: 26px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 12px;
+}
+
+.chart-modal-body :deep(.chart-display-area) {
+  flex: 1;
+  min-height: 0;
+}
+
+.chart-modal-body :deep(.ant-spin-nested-loading),
+.chart-modal-body :deep(.ant-spin-container) {
+  height: 100%;
+}
+
+.chart-modal-body :deep(.graph-content),
+.chart-modal-body :deep(.guest-state) {
+  height: 100%;
+  min-height: 260px;
 }
 
 @media (max-width: 1180px) {

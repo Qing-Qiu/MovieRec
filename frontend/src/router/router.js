@@ -51,7 +51,7 @@ const routes = [
         component: ModelMod,
         meta: {
             dependent: false,
-            selects: ['3-1'],
+            selects: ['3'],
         }
     },
     {
@@ -59,7 +59,7 @@ const routes = [
         component: ChartMod,
         meta: {
             dependent: false,
-            selects: ['3-2'],
+            selects: ['3'],
         }
     },
     {
@@ -67,7 +67,7 @@ const routes = [
         component: MusicMod,
         meta: {
             dependent: false,
-            selects: ['3-3'],
+            selects: ['4'],
         }
     },
     {
