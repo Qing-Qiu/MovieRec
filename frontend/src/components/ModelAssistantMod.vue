@@ -127,7 +127,7 @@
           <div class="msg-body">
             <div class="msg-meta">
               <span>MovieRec AI</span>
-              <span>{{ retrieving ? '检索数据' : '生成回答' }}</span>
+              <span>{{ retrieving ? '查找资料' : '生成回答' }}</span>
             </div>
             <div class="bubble loading-bubble">
               <i></i><i></i><i></i>
@@ -158,8 +158,8 @@
     </section>
 
     <aside class="ai-context">
-      <span class="eyebrow">上下文</span>
-      <h2>数据线索</h2>
+      <span class="eyebrow">参考资料</span>
+      <h2>相关线索</h2>
       <div class="mode-note">
         <component :is="activeMode.icon" />
         <div>
@@ -168,10 +168,32 @@
         </div>
       </div>
 
+      <div v-if="currentToolCalls.length" class="tool-plan">
+        <div class="tool-plan-head">
+          <BulbOutlined />
+          <strong>查找思路</strong>
+          <span>{{ currentToolCalls.length }} 步</span>
+        </div>
+        <div class="tool-call-list">
+          <article
+            v-for="(tool, index) in currentToolCalls"
+            :key="`${index}-${tool.toolName}`"
+            class="tool-call"
+          >
+            <div>
+              <strong>{{ toolLabel(tool.toolName) }}</strong>
+              <em>{{ toolRiskLabel(tool.riskLevel) }}</em>
+            </div>
+            <p>{{ tool.reason || '根据当前问题补充参考资料。' }}</p>
+            <small v-if="toolInputSummary(tool.input)">{{ toolInputSummary(tool.input) }}</small>
+          </article>
+        </div>
+      </div>
+
       <div v-if="currentRetrievalSteps.length" class="retrieval-steps">
         <div class="retrieval-steps-head">
           <DatabaseOutlined />
-          <strong>检索路径</strong>
+          <strong>查找过程</strong>
         </div>
         <ol>
           <li v-for="(step, index) in currentRetrievalSteps" :key="`${index}-${step}`">
@@ -183,7 +205,7 @@
 
       <div v-if="currentMode === 'chart'" class="chart-embed">
         <div class="chart-embed-head">
-          <strong>图表解读数据</strong>
+          <strong>图表解读资料</strong>
           <button type="button" @click="openChartModal">完整视图</button>
         </div>
         <div class="chart-tabs">
@@ -338,7 +360,7 @@ const modes = [
     emptyText: "可以聊观影选择、剧情理解、类型偏好，也可以继续追问。",
     placeholder: "问一个电影相关的问题...",
     panelText: "适合开放式电影问答，回答会尽量清晰、可追问。",
-    emptyContext: "当前模式不强制检索数据库。",
+    emptyContext: "这个模式可以直接提问，也可以继续追问电影话题。",
     system: "适合开放式电影问答。回答时围绕电影、影人、推荐、评论和观影体验展开。",
     prompts: [
       { kicker: "选片", text: "我今晚想看一部节奏快、情绪不压抑的电影，有什么建议？" },
@@ -352,12 +374,12 @@ const modes = [
     name: "知识库",
     title: "查询电影与影人资料",
     icon: DatabaseOutlined,
-    emptyTitle: "用数据库线索回答问题",
-    emptyText: "输入电影名、影人名或具体问题，页面会先召回相关条目。",
+    emptyTitle: "用片库资料回答问题",
+    emptyText: "输入电影名、影人名或具体问题，页面会先找出相关电影或影人。",
     placeholder: "查询电影、影人、剧情、主演、导演...",
-    panelText: "会先搜索电影和影人数据，再把召回结果作为回答依据。",
-    emptyContext: "提问后会在这里显示召回的电影或影人。",
-    system: "适合数据库知识问答。必须优先使用提供的电影、影人和评论线索。",
+    panelText: "会先搜索电影和影人资料，再把相关结果作为回答依据。",
+    emptyContext: "提问后会在这里显示找到的电影或影人。",
+    system: "适合片库资料问答。必须优先使用提供的电影、影人和评论线索。",
     prompts: [
       { kicker: "电影", text: "《阿甘正传》的导演、主演和类型是什么？" },
       { kicker: "影人", text: "成龙的代表作品和常见类型倾向是什么？" },
@@ -374,7 +396,7 @@ const modes = [
     emptyText: "越具体越容易得到有解释的推荐，比如地区、年代、类型、情绪。",
     placeholder: "描述你想看的电影...",
     panelText: "适合把自然语言偏好转成推荐方向，并解释为什么适合。",
-    emptyContext: "提问后会优先召回匹配电影作为候选线索。",
+    emptyContext: "提问后会先找出匹配电影，作为推荐参考。",
     system: "适合推荐解释。要把用户偏好拆成类型、情绪、节奏、地区、年代等维度。",
     prompts: [
       { kicker: "偏好", text: "推荐几部高分日本悬疑片，最好节奏紧凑一点。" },
@@ -391,12 +413,12 @@ const modes = [
     emptyTitle: "让图表变成结论",
     emptyText: "适合分析年度热片、类型数量、用户画像等可视化结果。",
     placeholder: "问一个和图表趋势有关的问题...",
-    panelText: "适合把图表结果解释成自然语言结论，后续可直接接入图表数据。",
+    panelText: "适合把图表结果解释成自然语言结论，帮助看懂变化趋势。",
     emptyContext: "当前会提供图表模块的结构线索。",
     system: "适合图表解读。回答要用趋势、对比、异常点和可能原因组织，不要编造具体数值。",
     prompts: [
       { kicker: "趋势", text: "如果某一年喜剧片数量明显增加，可能有哪些解释？" },
-      { kicker: "画像", text: "用户画像里的高频类型可以怎样转化为推荐理由？" },
+      { kicker: "画像", text: "我的观影偏好可以怎样转化为推荐理由？" },
       { kicker: "异常", text: "年度最受欢迎电影和类型数量之间可以如何关联分析？" },
     ],
   },
@@ -412,10 +434,11 @@ const abortController = ref(null);
 const currentReferences = ref([]);
 const currentContextText = ref("");
 const currentRetrievalSteps = ref([]);
+const currentToolCalls = ref([]);
 const currentSessionId = ref(1);
 const nextSessionId = ref(2);
 const sessions = reactive([{ id: 1, title: "新对话", modeId: "" }]);
-const sessionStore = reactive({ 1: { messages: [], references: [], contextText: "", retrievalSteps: [], modeId: "" } });
+const sessionStore = reactive({ 1: { messages: [], references: [], contextText: "", retrievalSteps: [], toolCalls: [], modeId: "" } });
 const messages = ref([]);
 const chartView = ref("popular");
 const miniChartType = ref("喜剧");
@@ -449,6 +472,38 @@ const latestReferences = computed(() => {
   return [];
 });
 
+const toolNames = {
+  retrieveMovie: "找相关电影",
+  retrievePerson: "找相关影人",
+  retrieveMovieCast: "查看主创阵容",
+  retrievePersonWorks: "查看代表作品",
+  retrieveComments: "查看观众评价",
+  retrieveCharts: "查看图表线索",
+};
+const toolLabel = (name) => toolNames[name] || name || "未知步骤";
+const toolRiskLabel = (risk) => (risk === "read" ? "仅查看" : risk || "仅查看");
+const toolInputLabels = {
+  query: "问题",
+  keyword: "关键词",
+  mode: "场景",
+  limit: "数量",
+  source: "依据",
+};
+const toolInputValue = (value) => {
+  if (value === "firstMovie") return "首部相关电影";
+  if (value === "firstPerson") return "首位相关影人";
+  if (value === "knowledge") return "资料查询";
+  if (value === "recommend") return "推荐";
+  if (value === "chart") return "图表";
+  return String(value);
+};
+const toolInputSummary = (input = {}) => {
+  const entries = Object.entries(input || {})
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+    .map(([key, value]) => `${toolInputLabels[key] || key}: ${truncate(toolInputValue(value), 18)}`);
+  return entries.slice(0, 3).join(" · ");
+};
+
 onMounted(() => {
   loadStoredSessions();
   window.addEventListener("beforeunload", persistSessions);
@@ -481,11 +536,22 @@ const truncate = (value, size) => {
   return text.length > size ? `${text.slice(0, size)}...` : text;
 };
 
+const cloneToolCalls = (items) =>
+  Array.isArray(items)
+    ? items.map((item) => ({
+        toolName: String(item.toolName || ""),
+        riskLevel: String(item.riskLevel || "read"),
+        reason: String(item.reason || ""),
+        input: item.input && typeof item.input === "object" ? { ...item.input } : {},
+      }))
+    : [];
+
 const cloneMessages = (items) =>
   items.map((item) => ({
     ...item,
     streaming: false,
     references: item.references ? item.references.map((ref) => ({ ...ref })) : [],
+    toolCalls: cloneToolCalls(item.toolCalls),
   }));
 
 const modeById = (modeId) => modes.find((item) => item.id === modeId);
@@ -500,6 +566,7 @@ const normalizeSessionState = (state = {}) => ({
   references: Array.isArray(state.references) ? state.references.map((item) => ({ ...item })) : [],
   contextText: state.contextText || "",
   retrievalSteps: Array.isArray(state.retrievalSteps) ? state.retrievalSteps.map((item) => String(item)) : [],
+  toolCalls: cloneToolCalls(state.toolCalls),
   modeId: modeById(state.modeId) ? state.modeId : inferModeFromMessages(state.messages || []),
 });
 
@@ -516,6 +583,7 @@ const writeCurrentSession = () => {
     references: currentReferences.value.map((item) => ({ ...item })),
     contextText: currentContextText.value,
     retrievalSteps: currentRetrievalSteps.value.map((item) => String(item)),
+    toolCalls: cloneToolCalls(currentToolCalls.value),
     modeId,
   };
 };
@@ -562,6 +630,7 @@ const loadStoredSessions = () => {
     currentReferences.value = state.references.length ? state.references : currentMode.value === "chart" ? chartReferences() : [];
     currentContextText.value = state.contextText || "";
     currentRetrievalSteps.value = state.retrievalSteps || [];
+    currentToolCalls.value = cloneToolCalls(state.toolCalls);
   } catch (error) {
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -584,6 +653,7 @@ const changeMode = (modeId) => {
   currentReferences.value = modeId === "chart" ? chartReferences() : [];
   currentContextText.value = "";
   currentRetrievalSteps.value = [];
+  currentToolCalls.value = [];
 };
 
 const startNewChat = () => {
@@ -592,13 +662,14 @@ const startNewChat = () => {
   const id = nextSessionId.value;
   nextSessionId.value += 1;
   sessions.unshift({ id, title: "新对话", modeId: "" });
-  sessionStore[id] = { messages: [], references: [], contextText: "", retrievalSteps: [], modeId: "" };
+  sessionStore[id] = { messages: [], references: [], contextText: "", retrievalSteps: [], toolCalls: [], modeId: "" };
   currentSessionId.value = id;
   messages.value = [];
   inputContent.value = "";
   currentReferences.value = currentMode.value === "chart" ? chartReferences() : [];
   currentContextText.value = "";
   currentRetrievalSteps.value = [];
+  currentToolCalls.value = [];
   persistSessions();
   message.success("已开启新对话");
 };
@@ -621,6 +692,7 @@ const switchSession = (id) => {
       : [];
   currentContextText.value = state.contextText || "";
   currentRetrievalSteps.value = state.retrievalSteps || [];
+  currentToolCalls.value = cloneToolCalls(state.toolCalls);
   scrollToBottom();
 };
 
@@ -636,12 +708,13 @@ const deleteSession = (id) => {
     const nextId = nextSessionId.value;
     nextSessionId.value += 1;
     sessions.push({ id: nextId, title: "新对话", modeId: "" });
-    sessionStore[nextId] = { messages: [], references: [], contextText: "", retrievalSteps: [], modeId: "" };
+    sessionStore[nextId] = { messages: [], references: [], contextText: "", retrievalSteps: [], toolCalls: [], modeId: "" };
     currentSessionId.value = nextId;
     messages.value = [];
     currentReferences.value = currentMode.value === "chart" ? chartReferences() : [];
     currentContextText.value = "";
     currentRetrievalSteps.value = [];
+    currentToolCalls.value = [];
   } else if (currentSessionId.value === id) {
     currentSessionId.value = sessions[0].id;
     const state = normalizeSessionState(sessionStore[currentSessionId.value] || {});
@@ -657,6 +730,7 @@ const deleteSession = (id) => {
         : [];
     currentContextText.value = state.contextText || "";
     currentRetrievalSteps.value = state.retrievalSteps || [];
+    currentToolCalls.value = cloneToolCalls(state.toolCalls);
   }
 
   persistSessions();
@@ -730,6 +804,7 @@ const requestAssistant = async (content, modeId) => {
       modeId: mode.id,
       modeName: mode.name,
       references,
+      toolCalls: cloneToolCalls(currentToolCalls.value),
       streaming: true,
     };
     messages.value.push(assistantMessage);
@@ -753,6 +828,7 @@ const requestAssistant = async (content, modeId) => {
           modeId: mode.id,
           modeName: mode.name,
           references: currentReferences.value,
+          toolCalls: cloneToolCalls(currentToolCalls.value),
         });
       }
     } else {
@@ -763,6 +839,7 @@ const requestAssistant = async (content, modeId) => {
         modeId: mode.id,
         modeName: mode.name,
         references: currentReferences.value,
+        toolCalls: cloneToolCalls(currentToolCalls.value),
       });
     }
   } finally {
@@ -878,6 +955,7 @@ const retrieveContext = async (content, mode, signal) => {
   const data = response.data?.data || {};
   currentContextText.value = data.contextText || "";
   currentRetrievalSteps.value = Array.isArray(data.retrievalSteps) ? data.retrievalSteps : [];
+  currentToolCalls.value = cloneToolCalls(data.toolCalls);
   return Array.isArray(data.references) ? data.references : [];
 };
 
@@ -889,7 +967,7 @@ const updateSessionTitle = (content) => {
 const chartReferences = () => [
   { type: "chart", typeLabel: "图表", title: "历年最受欢迎电影", meta: "年度趋势", description: "可用于分析年份、热度与代表影片之间的关系。", route: "/chart" },
   { type: "chart", typeLabel: "图表", title: "类型数量分布", meta: "类型对比", description: "可用于观察某一年不同电影类型的数量结构。", route: "/chart" },
-  { type: "chart", typeLabel: "画像", title: "我的画像", meta: "用户偏好", description: "可用于把高频类型解释成个性化推荐理由。", route: "/chart" },
+  { type: "chart", typeLabel: "画像", title: "我的画像", meta: "用户偏好", description: "可用于把观影偏好解释成个性化推荐理由。", route: "/chart" },
 ];
 
 const compactAxisLabel = (value) => {
@@ -1690,6 +1768,89 @@ button {
   border: 1px solid #dfe7ec;
   border-radius: var(--movie-radius);
   background: #fff;
+}
+
+.tool-plan {
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid #dfe7ec;
+  border-radius: var(--movie-radius);
+  background: #f8fafb;
+}
+
+.tool-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #0f7f83;
+}
+
+.tool-plan-head strong {
+  color: #17222b;
+  font-size: 14px;
+}
+
+.tool-plan-head span {
+  margin-left: auto;
+  color: #788692;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tool-call-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-call {
+  padding: 10px;
+  border: 1px solid #e1e8ed;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.tool-call div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-call strong {
+  min-width: 0;
+  color: #17222b;
+  font-size: 13px;
+}
+
+.tool-call em {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #0f7f83;
+  background: #e3f2f2;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.tool-call p {
+  margin: 6px 0 0;
+  color: #53616d;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.tool-call small {
+  display: block;
+  margin-top: 6px;
+  color: #8a97a2;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .retrieval-steps-head {

@@ -42,6 +42,13 @@
               >
                 <template #cover>
                   <div class="image-wrapper">
+                    <span
+                      v-if="item.source"
+                      class="recommend-source-badge"
+                      :class="sourceClass(item.source)"
+                    >
+                      {{ item.source }}
+                    </span>
                     <imgWrapper 
                       :src="item.image"
                       :alt="item.title"
@@ -51,6 +58,10 @@
                 <a-card-meta :title="item.title">
                   <template #description>
                     <span class="movie-genre">{{ item.description }}</span>
+                    <span v-if="item.tags && item.tags.length" class="recommend-tags">
+                      <span v-for="tag in item.tags" :key="`${item.id}-${tag}`">{{ tag }}</span>
+                    </span>
+                    <span v-if="item.reason" class="recommend-reason">{{ item.reason }}</span>
                   </template>
                 </a-card-meta>
               </a-card>
@@ -231,7 +242,10 @@ export default {
                   title: response.data[i].name,
                   id: response.data[i].movieID,
                   image: response.data[i].img,
-                  description: desc
+                  description: desc,
+                  reason: response.data[i].recommendReason || '',
+                  source: response.data[i].recommendSource || '',
+                  tags: Array.isArray(response.data[i].recommendTags) ? response.data[i].recommendTags : []
                 });
             }
         }
@@ -245,6 +259,13 @@ export default {
     refresh() {
       this.recommendedImages = [];
       this.fetchData();
+    },
+
+    sourceClass(source) {
+      if (source === '相似口味') return 'source-cf';
+      if (source === '口味相近' || source === '常看地区') return 'source-profile';
+      if (source === '高分佳片') return 'source-rating';
+      return 'source-explore';
     },
 
     backward() {
@@ -460,7 +481,7 @@ export default {
 }
 
 :deep(.movie-card .ant-card-meta-description) {
-  min-height: 20px;
+  min-height: 54px;
 }
 
 .image-wrapper {
@@ -479,6 +500,42 @@ export default {
   transform: scale(1.04);
 }
 
+.recommend-source-badge {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  max-width: calc(100% - 20px);
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(17, 24, 32, 0.72);
+  box-shadow: 0 8px 18px rgba(17, 24, 32, 0.18);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.recommend-source-badge.source-cf {
+  background: rgba(15, 127, 131, 0.88);
+}
+
+.recommend-source-badge.source-profile {
+  background: rgba(80, 101, 163, 0.88);
+}
+
+.recommend-source-badge.source-rating {
+  background: rgba(196, 59, 69, 0.9);
+}
+
+.recommend-source-badge.source-explore {
+  background: rgba(95, 105, 116, 0.86);
+}
+
 .movie-genre {
   color: var(--movie-muted);
   font-size: 13px;
@@ -487,6 +544,42 @@ export default {
   line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.recommend-reason {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 38px;
+  margin-top: 6px;
+  color: #50606d;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow: hidden;
+}
+
+.recommend-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 22px;
+  margin-top: 8px;
+}
+
+.recommend-tags span {
+  max-width: 88px;
+  padding: 2px 7px 3px;
+  border-radius: 999px;
+  color: #60707d;
+  background: #f0f4f6;
+  border: 1px solid #dde7ec;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .pagination-wrapper {

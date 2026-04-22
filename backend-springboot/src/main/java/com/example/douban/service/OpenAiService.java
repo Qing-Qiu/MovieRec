@@ -2,6 +2,7 @@ package com.example.douban.service;
 
 import com.example.douban.pojo.Message;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
@@ -29,6 +30,9 @@ import java.util.function.Consumer;
 
 @Service
 public class OpenAiService {
+    private static final int MAX_CONTEXT_CHARS = 4200;
+    private static final int MAX_CONTEXT_LINE_CHARS = 360;
+    private static final int MAX_HISTORY_MESSAGES = 8;
 
     @Resource
     private RestTemplate restTemplate;
@@ -126,7 +130,8 @@ public class OpenAiService {
         if (messages == null) {
             return prepared;
         }
-        for (Message message : messages) {
+        int start = Math.max(0, messages.size() - MAX_HISTORY_MESSAGES);
+        for (Message message : messages.subList(start, messages.size())) {
             if (message == null || message.getContent() == null || message.getContent().isBlank()) {
                 continue;
             }
@@ -139,7 +144,7 @@ public class OpenAiService {
     }
 
     private String buildSystemPrompt(String modeKey, String modeName, String contextText) {
-        String context = contextText == null || contextText.isBlank() ? "暂无数据库上下文。" : contextText;
+        String context = compactContext(contextText);
         String instruction = switch (modeKey) {
             case "knowledge" -> "你正在进行电影知识库问答。优先使用给定的电影、影人和评论数据；如果数据不足，要明确说明。";
             case "recommend" -> "你正在担任电影推荐助手。先总结用户偏好，再基于数据线索给出推荐理由。推荐候选会在页面卡片中展示，文字回答要解释为什么适合。";
@@ -151,12 +156,47 @@ public class OpenAiService {
                 "你是 MovieRec 的智能电影助手，只使用中文回答。",
                 "当前模式：" + displayMode + "。",
                 instruction,
+                "回答限制：不要输出思考过程，不要输出 <think> 标签；先给结论，再给依据。",
+                "本地小模型优先策略：回答控制在 3-6 条要点内，严格贴合可用数据线索。",
                 "项目中的电影评分统一按十分制理解，满分是 10 分。",
                 "回答要具体、克制，不要编造数据库里没有给出的片名、人物、评分或评论。",
                 "如果需要项目数据而上下文不足，请说明还需要进一步检索。",
                 "可用数据线索：",
                 context
         );
+    }
+
+    private String compactContext(String contextText) {
+        if (contextText == null || contextText.isBlank()) {
+            return "暂无数据库上下文。";
+        }
+        String normalized = contextText.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= MAX_CONTEXT_CHARS) {
+            return contextText;
+        }
+        String[] lines = contextText.split("\\R+");
+        StringBuilder builder = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.replaceAll("\\s+", " ").trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (trimmed.length() > MAX_CONTEXT_LINE_CHARS) {
+                trimmed = trimmed.substring(0, MAX_CONTEXT_LINE_CHARS) + "...";
+            }
+            if (builder.length() + trimmed.length() + 1 > MAX_CONTEXT_CHARS) {
+                break;
+            }
+            if (!builder.isEmpty()) {
+                builder.append('\n');
+            }
+            builder.append(trimmed);
+        }
+        if (builder.isEmpty()) {
+            return normalized.substring(0, Math.min(MAX_CONTEXT_CHARS, normalized.length())) + "...";
+        }
+        builder.append("\n[上下文已压缩，仅保留最相关数据线索。]");
+        return builder.toString();
     }
 
     private String resolveModeKey(int mode, String modeKey) {
@@ -189,11 +229,16 @@ public class OpenAiService {
         private String model;
         private List<Message> messages;
         private Boolean stream;
+        private Double temperature;
+        @JsonProperty("top_p")
+        private Double topP;
 
         ChatRequest(String model, List<Message> messages, Boolean stream) {
             this.model = model;
             this.messages = messages;
             this.stream = stream;
+            this.temperature = 0.25;
+            this.topP = 0.85;
         }
     }
 

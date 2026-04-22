@@ -33,6 +33,8 @@
                genre,
                rate AS rate,
                popular,
+               year,
+               region,
                img
         FROM movie
         ORDER BY CAST(popular AS SIGNED) DESC
@@ -185,6 +187,8 @@
         genre,
         rate as rate,
         popular,
+        year,
+        region,
         img
         FROM movie
         WHERE movieID IN

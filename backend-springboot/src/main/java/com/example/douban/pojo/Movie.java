@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -22,4 +24,7 @@ public class Movie {
     private String year;
     private String region;
     private String img;
+    private String recommendReason;
+    private String recommendSource;
+    private List<String> recommendTags;
 }

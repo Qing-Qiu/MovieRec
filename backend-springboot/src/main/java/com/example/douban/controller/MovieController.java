@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 public class MovieController {
 
     private static final int RECOMMENDATION_SIZE = 8;
-    private static final int PERSONALIZED_SIZE = 4;
     private static final int POPULAR_CANDIDATE_LIMIT = 600;
     private static final long POPULAR_CACHE_MILLIS = 5 * 60 * 1000L;
 
@@ -46,27 +45,28 @@ public class MovieController {
     @PostMapping("/recommend")
     public ResponseEntity<ArrayList<Movie>> handleOpenPage(@RequestBody Map<String, String> userData) {
         try {
-            String nickname = userData.get("nickname");
+            String nickname = userData == null ? "" : Objects.toString(userData.get("nickname"), "");
             String userId = movieService.findUserIdByNickname(nickname);
-            
-            ArrayList<Movie> finalMovies = new ArrayList<>();
             ArrayList<Movie> recommendedMovies = new ArrayList<>();
-            Set<String> selectedMovieIds = new HashSet<>();
+            Map<String, Double> collaborativeScores = new HashMap<>();
+            PreferenceProfile profile = buildPreferenceProfile(nickname);
 
             // 1. Get Recommendations if User Exists
             if (userId != null) {
                 try {
                     long uid = Long.parseLong(userId);
-                    List<RecommendedItem> items = recommendationService.recommend(uid, 16);
+                    List<RecommendedItem> items = recommendationService.recommend(uid, 32);
                     
                     if (!items.isEmpty()) {
-                        // Extract Item IDs (Sequence IDs)
-                        List<String> sequenceIds = items.stream()
-                                .map(item -> String.valueOf(item.getItemID()))
-                                .collect(Collectors.toList());
-
-                        // Batch convert Sequence IDs to Movie IDs (UUIDs)
-                        List<String> movieIds = movieService.findMovieIdsBySequences(sequenceIds);
+                        List<String> movieIds = new ArrayList<>();
+                        for (RecommendedItem item : items) {
+                            String movieId = movieService.findMovieIdById(String.valueOf(item.getItemID()));
+                            if (movieId == null || movieId.isBlank()) {
+                                continue;
+                            }
+                            movieIds.add(movieId);
+                            collaborativeScores.merge(movieId, normalizeMahoutScore(item.getValue()), Math::max);
+                        }
 
                         // Batch fetch Movies
                         List<Movie> fetchedMovies = movieService.findMoviesByIds(movieIds);
@@ -81,33 +81,13 @@ public class MovieController {
                 }
             }
 
-            // 2. Select up to 4 movies from recommendations
-            recommendedMovies.stream()
-                    .filter(Objects::nonNull)
-                    .sorted(this::compareMovieQuality)
-                    .forEach(movie -> {
-                        if (finalMovies.size() < PERSONALIZED_SIZE) {
-                            addMovieIfNew(finalMovies, selectedMovieIds, movie);
-                        }
-                    });
-
-            // 3. Fill the rest from a cached popular candidate pool.
+            // 2. Merge collaborative candidates with a cached popular candidate pool, then rerank.
+            Map<String, Movie> candidates = new LinkedHashMap<>();
+            addCandidates(candidates, recommendedMovies, profile.seenMovieIds);
             List<Movie> popularMovies = getPopularFallbackCandidates();
-            int attempts = 0;
-            while (finalMovies.size() < RECOMMENDATION_SIZE
-                    && !popularMovies.isEmpty()
-                    && attempts < RECOMMENDATION_SIZE * 12) {
-                Movie randomMovie = popularMovies.get(pickWeightedPopularOffset(popularMovies.size()));
-                addMovieIfNew(finalMovies, selectedMovieIds, randomMovie);
-                attempts++;
-            }
+            addCandidates(candidates, popularMovies, profile.seenMovieIds);
 
-            for (Movie movie : popularMovies) {
-                if (finalMovies.size() >= RECOMMENDATION_SIZE) {
-                    break;
-                }
-                addMovieIfNew(finalMovies, selectedMovieIds, movie);
-            }
+            ArrayList<Movie> finalMovies = selectDiverseRecommendations(candidates, collaborativeScores, profile);
 
             return ResponseEntity.ok(finalMovies);
         } catch (Exception e) {
@@ -186,6 +166,232 @@ public class MovieController {
         return true;
     }
 
+    private void addCandidates(Map<String, Movie> candidates, Collection<Movie> movies, Set<String> excludedMovieIds) {
+        if (movies == null) {
+            return;
+        }
+        for (Movie movie : movies) {
+            if (movie == null || movie.getMovieID() == null || excludedMovieIds.contains(movie.getMovieID())) {
+                continue;
+            }
+            candidates.putIfAbsent(movie.getMovieID(), copyMovie(movie));
+        }
+    }
+
+    private ArrayList<Movie> selectDiverseRecommendations(Map<String, Movie> candidates,
+                                                          Map<String, Double> collaborativeScores,
+                                                          PreferenceProfile profile) {
+        Map<String, Double> scores = new HashMap<>();
+        for (Movie movie : candidates.values()) {
+            scores.put(movie.getMovieID(), recommendationScore(movie, collaborativeScores, profile));
+        }
+        List<Movie> ranked = candidates.values().stream()
+                .sorted((left, right) -> Double.compare(scores.get(right.getMovieID()), scores.get(left.getMovieID())))
+                .collect(Collectors.toList());
+
+        ArrayList<Movie> selected = new ArrayList<>();
+        Set<String> selectedMovieIds = new HashSet<>();
+        Map<String, Integer> genreCounts = new HashMap<>();
+        Map<String, Integer> regionCounts = new HashMap<>();
+        for (Movie movie : ranked) {
+            if (selected.size() >= RECOMMENDATION_SIZE) {
+                break;
+            }
+            if (!passesDiversity(movie, genreCounts, regionCounts)) {
+                continue;
+            }
+            addSelectedMovie(selected, selectedMovieIds, genreCounts, regionCounts, movie, profile, collaborativeScores);
+        }
+
+        for (Movie movie : ranked) {
+            if (selected.size() >= RECOMMENDATION_SIZE) {
+                break;
+            }
+            addSelectedMovie(selected, selectedMovieIds, genreCounts, regionCounts, movie, profile, collaborativeScores);
+        }
+        return selected;
+    }
+
+    private void addSelectedMovie(ArrayList<Movie> selected,
+                                  Set<String> selectedMovieIds,
+                                  Map<String, Integer> genreCounts,
+                                  Map<String, Integer> regionCounts,
+                                  Movie movie,
+                                  PreferenceProfile profile,
+                                  Map<String, Double> collaborativeScores) {
+        if (!addMovieIfNew(selected, selectedMovieIds, movie)) {
+            return;
+        }
+        primaryTerms(movie.getGenre()).stream().findFirst().ifPresent(genre -> genreCounts.merge(genre, 1, Integer::sum));
+        primaryTerms(movie.getRegion()).stream().findFirst().ifPresent(region -> regionCounts.merge(region, 1, Integer::sum));
+        boolean collaborativeHit = collaborativeScores.containsKey(movie.getMovieID());
+        List<String> tags = recommendTags(movie, profile, collaborativeHit);
+        movie.setRecommendTags(tags);
+        movie.setRecommendSource(tags.isEmpty() ? "新鲜发现" : tags.get(0));
+        movie.setRecommendReason(recommendReason(movie, profile, collaborativeHit));
+    }
+
+    private boolean passesDiversity(Movie movie, Map<String, Integer> genreCounts, Map<String, Integer> regionCounts) {
+        String genre = primaryTerms(movie.getGenre()).stream().findFirst().orElse("");
+        String region = primaryTerms(movie.getRegion()).stream().findFirst().orElse("");
+        return genreCounts.getOrDefault(genre, 0) < 3 && regionCounts.getOrDefault(region, 0) < 4;
+    }
+
+    private double recommendationScore(Movie movie, Map<String, Double> collaborativeScores, PreferenceProfile profile) {
+        double cfScore = collaborativeScores.getOrDefault(movie.getMovieID(), 0.0);
+        double ratingScore = Math.min(1.0, parseDouble(movie.getRate()) / 10.0);
+        double popularityScore = Math.min(1.0, Math.log10(parseInt(movie.getPopular()) + 1) / 6.0);
+        double profileScore = profile.match(movie);
+        double popularPenalty = profile.hasSignals() && profileScore == 0 ? popularityScore * 0.08 : 0;
+        double explorationJitter = profile.hasSignals() || cfScore > 0
+                ? ThreadLocalRandom.current().nextDouble(0, 0.035)
+                : ThreadLocalRandom.current().nextDouble(0, 0.14);
+        return cfScore * 0.38
+                + profileScore * 0.30
+                + ratingScore * 0.22
+                + popularityScore * 0.10
+                - popularPenalty
+                + explorationJitter;
+    }
+
+    private double normalizeMahoutScore(float score) {
+        if (Float.isNaN(score) || Float.isInfinite(score)) {
+            return 0;
+        }
+        return Math.max(0, Math.min(1, score / 5.0));
+    }
+
+    private String recommendReason(Movie movie, PreferenceProfile profile, boolean collaborativeHit) {
+        List<String> matchedGenres = primaryTerms(movie.getGenre()).stream()
+                .filter(profile.genreWeights::containsKey)
+                .limit(2)
+                .collect(Collectors.toList());
+        if (collaborativeHit && !matchedGenres.isEmpty()) {
+            return "和你常看的 " + String.join("、", matchedGenres) + " 类型接近，也被相似口味的用户喜欢。";
+        }
+        if (!matchedGenres.isEmpty()) {
+            return "和你常看的 " + String.join("、", matchedGenres) + " 类型接近。";
+        }
+        if (collaborativeHit) {
+            return "相似观影口味的用户也喜欢这部。";
+        }
+        if (parseDouble(movie.getRate()) >= 8.5) {
+            return "评分表现稳定，适合放心加入片单。";
+        }
+        return "给片单加一点新鲜感，避免一直看到同类热门片。";
+    }
+
+    private List<String> recommendTags(Movie movie, PreferenceProfile profile, boolean collaborativeHit) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        boolean genreMatched = profile.matchesGenre(movie);
+        boolean regionMatched = profile.matchesRegion(movie);
+        boolean highScore = parseDouble(movie.getRate()) >= 8.5;
+
+        if (collaborativeHit) {
+            tags.add("相似口味");
+        }
+        if (genreMatched) {
+            tags.add("口味相近");
+        }
+        if (regionMatched) {
+            tags.add("常看地区");
+        }
+        if (highScore) {
+            tags.add("高分佳片");
+        }
+        if (!collaborativeHit && !genreMatched && !regionMatched) {
+            tags.add("新鲜发现");
+        }
+        return tags.stream().limit(3).collect(Collectors.toList());
+    }
+
+    private PreferenceProfile buildPreferenceProfile(String nickname) {
+        PreferenceProfile profile = new PreferenceProfile();
+        if (nickname == null || nickname.isBlank()) {
+            return profile;
+        }
+
+        Set<String> rawIds = new LinkedHashSet<>();
+        ArrayList<String> ratedIds = movieService.findMovieByNickname(nickname);
+        ArrayList<String> commentIds = movieService.findMovieByNickname2(nickname);
+        if (ratedIds != null) {
+            rawIds.addAll(ratedIds);
+        }
+        if (commentIds != null) {
+            rawIds.addAll(commentIds);
+        }
+        if (rawIds.isEmpty()) {
+            return profile;
+        }
+
+        List<Movie> historyMovies = findMoviesFromPossibleIds(rawIds);
+        for (Movie movie : historyMovies) {
+            if (movie == null || movie.getMovieID() == null) {
+                continue;
+            }
+            profile.seenMovieIds.add(movie.getMovieID());
+            for (String genre : primaryTerms(movie.getGenre())) {
+                profile.genreWeights.merge(genre, 1, Integer::sum);
+            }
+            for (String region : primaryTerms(movie.getRegion())) {
+                profile.regionWeights.merge(region, 1, Integer::sum);
+            }
+        }
+        return profile;
+    }
+
+    private List<Movie> findMoviesFromPossibleIds(Collection<String> rawIds) {
+        List<String> ids = rawIds.stream().filter(Objects::nonNull).map(String::trim).filter(id -> !id.isEmpty()).limit(80).collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<String, Movie> movies = new LinkedHashMap<>();
+        List<Movie> directMovies = movieService.findMoviesByIds(ids);
+        for (Movie movie : directMovies) {
+            if (movie != null && movie.getMovieID() != null) {
+                movies.putIfAbsent(movie.getMovieID(), movie);
+            }
+        }
+        List<String> convertedIds = movieService.findMovieIdsBySequences(ids);
+        for (Movie movie : movieService.findMoviesByIds(convertedIds)) {
+            if (movie != null && movie.getMovieID() != null) {
+                movies.putIfAbsent(movie.getMovieID(), movie);
+            }
+        }
+        return new ArrayList<>(movies.values());
+    }
+
+    private List<String> primaryTerms(String value) {
+        if (value == null || value.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(value.split("[\\s,，、/]+"))
+                .map(String::trim)
+                .filter(term -> !term.isEmpty() && !"全部".equals(term) && !"其它".equals(term))
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    private Movie copyMovie(Movie movie) {
+        Movie copy = new Movie();
+        copy.setMovieID(movie.getMovieID());
+        copy.setName(movie.getName());
+        copy.setDirector(movie.getDirector());
+        copy.setActor(movie.getActor());
+        copy.setTag(movie.getTag());
+        copy.setGenre(movie.getGenre());
+        copy.setSummary(movie.getSummary());
+        copy.setRate(movie.getRate());
+        copy.setPopular(movie.getPopular());
+        copy.setYear(movie.getYear());
+        copy.setRegion(movie.getRegion());
+        copy.setImg(movie.getImg());
+        copy.setRecommendReason(movie.getRecommendReason());
+        copy.setRecommendSource(movie.getRecommendSource());
+        copy.setRecommendTags(movie.getRecommendTags());
+        return copy;
+    }
+
     private List<Movie> getPopularFallbackCandidates() {
         long now = System.currentTimeMillis();
         List<Movie> cached = popularFallbackCache;
@@ -206,33 +412,6 @@ public class MovieController {
         }
     }
 
-    private int pickWeightedPopularOffset(int totalMovies) {
-        int topCount = Math.max(1, (int) Math.ceil(totalMovies * 0.20));
-        int middleCount = Math.max(1, (int) Math.ceil(totalMovies * 0.45));
-        int tailStart = Math.min(totalMovies - 1, topCount + middleCount);
-        int bucket = ThreadLocalRandom.current().nextInt(100);
-
-        if (bucket < 45) {
-            return ThreadLocalRandom.current().nextInt(topCount);
-        }
-        if (bucket < 80 && tailStart > topCount) {
-            return topCount + ThreadLocalRandom.current().nextInt(tailStart - topCount);
-        }
-        return tailStart + ThreadLocalRandom.current().nextInt(Math.max(1, totalMovies - tailStart));
-    }
-
-    private int compareMovieQuality(Movie left, Movie right) {
-        int scoreCompare = Double.compare(movieQualityScore(right), movieQualityScore(left));
-        if (scoreCompare != 0) {
-            return scoreCompare;
-        }
-        return Integer.compare(parseInt(right.getPopular()), parseInt(left.getPopular()));
-    }
-
-    private double movieQualityScore(Movie movie) {
-        return parseDouble(movie.getRate()) * 1000 + Math.log10(parseInt(movie.getPopular()) + 1);
-    }
-
     private double parseDouble(String value) {
         try {
             return value == null ? 0 : Double.parseDouble(value);
@@ -246,6 +425,48 @@ public class MovieController {
             return value == null ? 0 : Integer.parseInt(value);
         } catch (NumberFormatException e) {
             return 0;
+        }
+    }
+
+    private static class PreferenceProfile {
+        private final Set<String> seenMovieIds = new HashSet<>();
+        private final Map<String, Integer> genreWeights = new HashMap<>();
+        private final Map<String, Integer> regionWeights = new HashMap<>();
+
+        private boolean hasSignals() {
+            return !genreWeights.isEmpty() || !regionWeights.isEmpty();
+        }
+
+        private double match(Movie movie) {
+            if (!hasSignals()) {
+                return 0;
+            }
+            double genreScore = matchTerms(movie.getGenre(), genreWeights);
+            double regionScore = matchTerms(movie.getRegion(), regionWeights) * 0.35;
+            return Math.min(1.0, genreScore + regionScore);
+        }
+
+        private boolean matchesGenre(Movie movie) {
+            return matchTerms(movie.getGenre(), genreWeights) > 0;
+        }
+
+        private boolean matchesRegion(Movie movie) {
+            return matchTerms(movie.getRegion(), regionWeights) > 0;
+        }
+
+        private double matchTerms(String value, Map<String, Integer> weights) {
+            if (value == null || weights.isEmpty()) {
+                return 0;
+            }
+            int max = weights.values().stream().max(Integer::compareTo).orElse(1);
+            double score = 0;
+            for (String term : value.split("[\\s,，、/]+")) {
+                Integer weight = weights.get(term.trim());
+                if (weight != null) {
+                    score = Math.max(score, weight * 1.0 / max);
+                }
+            }
+            return score;
         }
     }
 }
